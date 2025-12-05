@@ -10,15 +10,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install libpcap
-        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev netcat-openbsd
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -29,31 +26,34 @@ jobs:
       - name: Run unit tests
         run: cargo test --verbose
 
+      - name: Start test TCP server on 8080
+        run: |
+          echo "Starting TCP server..."
+          nc -l 8080 > /dev/null &
+          SERVER_PID=$!
+          echo $SERVER_PID > server.pid
+
       - name: Test packet capture
         run: |
-          echo "Starting net-tap in background..."
-
-          # 启动 net-tap，捕获 lo 接口
+          echo "Starting net-tap..."
           sudo ./target/debug/net-tap > capture.log 2>&1 &
           TAP_PID=$!
+          echo $TAP_PID > tap.pid
 
           sleep 1
-          echo "Generating loopback traffic..."
 
-          # 产生测试流量
-          echo "hello" | curl -s -o /dev/null --data-binary @- http://127.0.0.1:8080 || true
+          echo "Sending test traffic..."
+          curl -s -o /dev/null -d "hello" http://127.0.0.1:8080
 
-          # 允许 net-tap 捕获
           sleep 2
 
-          echo "Killing net-tap..."
-          sudo kill $TAP_PID || true
-          sleep 1
+          echo "Stopping processes..."
+          sudo kill $(cat tap.pid) || true
+          sudo kill $(cat server.pid) || true
 
-          echo "Captured output:"
+          echo "--- Captured output ---"
           cat capture.log
 
-          # 验证 net-tap 是否捕获到了内容
           if ! grep -q "Captured packet" capture.log; then
             echo "::error ::net-tap did not capture any packets!"
             exit 1
