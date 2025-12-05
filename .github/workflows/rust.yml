@@ -9,57 +9,56 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpcap-dev curl
+          sudo apt-get install -y libpcap-dev iproute2
 
       - name: Build all binaries
         run: cargo build --verbose --bins
 
-      - name: Start echo server
+      - name: Setup TAP interface
         run: |
-          echo "Starting echo server..."
-          ./target/debug/echos > echo.log 2>&1 &
-          echo $! > echo_server.pid
-          sleep 1
+          sudo ip tuntap add dev tap0 mode tap user $USER
+          sudo ip link set dev tap0 up
+          sudo ip addr add 10.0.0.1/24 dev tap0
+          # 另一端为 10.0.0.2
+          sudo ip addr add 10.0.0.2/24 dev tap0
+          ip addr show tap0
 
       - name: Start net-tap
         run: |
-          echo "Starting net-tap..."
           sudo ./target/debug/net-tap > capture.log 2>&1 &
           echo $! > tap.pid
           sleep 1
 
-      - name: Run echo client (send traffic)
+      - name: Start echo server
         run: |
-          echo "Running echo client..."
-          ./target/debug/echoc > client.log 2>&1
-          cat client.log
+          ./target/debug/echo > echo.log 2>&1 &
+          echo $! > echo_server.pid
+          sleep 1
 
-      - name: Allow some time for capture
-        run: sleep 2
+      - name: Run echo client
+        run: |
+          ./target/debug/echo-client > client.log 2>&1
+          cat client.log
+          sleep 2
 
       - name: Stop background processes
         run: |
           sudo kill $(cat tap.pid) || true
           kill $(cat echo_server.pid) || true
 
-      - name: Show captured log
+      - name: Show captured packets
         run: cat capture.log
 
-      - name: Verify packets captured
+      - name: Verify net-tap captured
         run: |
           if ! grep -q "Captured packet" capture.log; then
             echo "::error :: net-tap did not capture any packets"
             exit 1
           fi
           echo "net-tap captured packets successfully"
-
-      - name: Cleanup
-        run: rm -f tap.pid echo_server.pid

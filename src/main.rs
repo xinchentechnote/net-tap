@@ -1,17 +1,24 @@
-use pcap::{Capture};
+use pcap::{Capture, Device};
 
 fn main() {
-    let mut cap = Capture::from_device("any")
+    let device_name = "tap0";
+    let device = Device::list()
+        .expect("Failed to list devices")
+        .into_iter()
+        .find(|d| d.name == device_name)
+        .expect("Device tap0 not found");
+
+    println!("Using device: {}", device.name);
+    let mut cap = Capture::from_device(device)
         .unwrap()
         .promisc(true)
         .snaplen(65535)
         .open()
         .expect("Failed to open capture");
 
-    cap.filter("tcp port 8080", true).unwrap();
-
     println!("Waiting for packets...");
     while let Ok(packet) = cap.next_packet() {
         println!("Captured packet, {} bytes", packet.data.len());
+        println!("Raw: {:?}", packet.data);
     }
 }

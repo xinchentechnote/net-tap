@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
-use std::net::{TcpListener};
+use std::net::TcpListener;
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").expect("bind failed");
+    let listener = TcpListener::bind("10.0.0.2:8080").expect("bind failed");
     loop {
         let (mut socket, _) = listener.accept().expect("accept failed");
         let mut buf = [0u8; 1024];
