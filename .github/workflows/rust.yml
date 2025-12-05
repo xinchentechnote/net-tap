@@ -20,14 +20,14 @@ jobs:
       - name: Build all binaries
         run: cargo build --verbose --bins
 
-      - name: Setup TAP interface
+      - name: Setup TUN device
         run: |
-          sudo ip tuntap add dev tap0 mode tap user $USER
-          sudo ip link set dev tap0 up
-          sudo ip addr add 10.0.0.1/24 dev tap0
-          # 另一端为 10.0.0.2
-          sudo ip addr add 10.0.0.2/24 dev tap0
-          ip addr show tap0
+          sudo ip tuntap add dev tun0 mode tun user $USER
+          sudo ip link set tun0 up
+          sudo ip addr add 10.0.0.1/24 dev tun0
+          sudo ip addr add 10.0.0.2/24 dev tun0
+          sudo sysctl -w net.ipv4.ip_forward=1
+          ip addr show tun0
 
       - name: Start net-tap
         run: |
@@ -62,3 +62,6 @@ jobs:
             exit 1
           fi
           echo "net-tap captured packets successfully"
+
+      - name: Cleanup
+        run: sudo ip link delete tun0
