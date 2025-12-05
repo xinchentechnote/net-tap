@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
+    branches: ["main"]
   pull_request:
+    branches: ["main"]
 
 jobs:
   test:
@@ -15,41 +17,49 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpcap-dev socat
+          sudo apt-get install -y libpcap-dev curl
 
-      - name: Build
-        run: cargo build --verbose
+      - name: Build all binaries
+        run: cargo build --verbose --bins
 
-      - name: Start TCP echo server (8080)
+      - name: Start echo server
         run: |
-          echo "Starting socat echo server..."
-          socat TCP-LISTEN:8080,reuseaddr,fork SYSTEM:"cat" &
-          echo $! > server.pid
+          echo "Starting echo server..."
+          ./target/debug/echos > echo.log 2>&1 &
+          echo $! > echo_server.pid
+          sleep 1
 
       - name: Start net-tap
         run: |
+          echo "Starting net-tap..."
           sudo ./target/debug/net-tap > capture.log 2>&1 &
           echo $! > tap.pid
           sleep 1
 
-      - name: Send test traffic
+      - name: Run echo client (send traffic)
         run: |
-          echo "hello world" | curl -s -o /dev/null --data-binary @- http://127.0.0.1:8080
-          sleep 2
+          echo "Running echo client..."
+          ./target/debug/echoc > client.log 2>&1
+          cat client.log
 
-      - name: Stop everything
+      - name: Allow some time for capture
+        run: sleep 2
+
+      - name: Stop background processes
         run: |
           sudo kill $(cat tap.pid) || true
-          sudo kill $(cat server.pid) || true
+          kill $(cat echo_server.pid) || true
 
-      - name: Check capture result
+      - name: Show captured log
+        run: cat capture.log
+
+      - name: Verify packets captured
         run: |
-          echo "--- capture.log ---"
-          cat capture.log
-
           if ! grep -q "Captured packet" capture.log; then
-            echo "::error ::net-tap did not capture any packets!"
+            echo "::error :: net-tap did not capture any packets"
             exit 1
-          else
-            echo "net-tap captured packets successfully!"
           fi
+          echo "net-tap captured packets successfully"
+
+      - name: Cleanup
+        run: rm -f tap.pid echo_server.pid
