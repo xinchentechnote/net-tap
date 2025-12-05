@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install libpcap
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run unit tests
+        run: cargo test --verbose
+
+      - name: Test packet capture
+        run: |
+          echo "Starting net-tap in background..."
+
+          # 启动 net-tap，捕获 lo 接口
+          sudo ./target/debug/net-tap > capture.log 2>&1 &
+          TAP_PID=$!
+
+          sleep 1
+          echo "Generating loopback traffic..."
+
+          # 产生测试流量
+          echo "hello" | curl -s -o /dev/null --data-binary @- http://127.0.0.1:8080 || true
+
+          # 允许 net-tap 捕获
+          sleep 2
+
+          echo "Killing net-tap..."
+          sudo kill $TAP_PID || true
+          sleep 1
+
+          echo "Captured output:"
+          cat capture.log
+
+          # 验证 net-tap 是否捕获到了内容
+          if ! grep -q "Captured packet" capture.log; then
+            echo "::error ::net-tap did not capture any packets!"
+            exit 1
+          fi
+
+          echo "net-tap successfully captured packets!"
