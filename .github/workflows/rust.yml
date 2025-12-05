@@ -30,7 +30,7 @@ jobs:
 
       - name: Start net-tap
         run: |
-          ./target/debug/net-tap > capture.log 2>&1 &
+          sudo ./target/debug/net-tap > capture.log 2>&1 &
           echo $! > tap.pid
           sleep 2
 
