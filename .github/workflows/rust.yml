@@ -14,15 +14,19 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev iproute2
+
+      - name: Build all binaries
+        run: cargo build --verbose --bins
+
       - name: Enable TUN
         run: |
           sudo ip tuntap add dev tun0 mode tun user $USER
           sudo ip addr add 10.0.0.1/24 dev tun0
           sudo ip link set tun0 up
-
-      - name: Build all components
-        run: |
-          cargo build --workspace
 
       - name: Start net-tap
         run: |
