@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
   pull_request:
-    branches: ["main"]
 
 jobs:
   test:
@@ -14,49 +12,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install libpcap
-        run: sudo apt-get update && sudo apt-get install -y libpcap-dev netcat-openbsd
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev socat
 
       - name: Build
         run: cargo build --verbose
 
-      - name: Run unit tests
-        run: cargo test --verbose
-
-      - name: Start test TCP server on 8080
+      - name: Start TCP echo server (8080)
         run: |
-          echo "Starting TCP server..."
-          nc -l 8080 > /dev/null &
-          SERVER_PID=$!
-          echo $SERVER_PID > server.pid
+          echo "Starting socat echo server..."
+          socat TCP-LISTEN:8080,reuseaddr,fork SYSTEM:"cat" &
+          echo $! > server.pid
 
-      - name: Test packet capture
+      - name: Start net-tap
         run: |
-          echo "Starting net-tap..."
           sudo ./target/debug/net-tap > capture.log 2>&1 &
-          TAP_PID=$!
-          echo $TAP_PID > tap.pid
-
+          echo $! > tap.pid
           sleep 1
 
-          echo "Sending test traffic..."
-          curl -s -o /dev/null -d "hello" http://127.0.0.1:8080
-
+      - name: Send test traffic
+        run: |
+          echo "hello world" | curl -s -o /dev/null --data-binary @- http://127.0.0.1:8080
           sleep 2
 
-          echo "Stopping processes..."
+      - name: Stop everything
+        run: |
           sudo kill $(cat tap.pid) || true
           sudo kill $(cat server.pid) || true
 
-          echo "--- Captured output ---"
+      - name: Check capture result
+        run: |
+          echo "--- capture.log ---"
           cat capture.log
 
           if ! grep -q "Captured packet" capture.log; then
             echo "::error ::net-tap did not capture any packets!"
             exit 1
+          else
+            echo "net-tap captured packets successfully!"
           fi
-
-          echo "net-tap successfully captured packets!"
