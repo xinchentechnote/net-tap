@@ -14,7 +14,7 @@ fn main() {
         .snaplen(65535)
         .open()
         .expect("Failed to open capture");
-    cap.filter("tcp port 9000", true)
+    cap.filter("tcp port 8080", true)
         .expect("Failed to set filter");
     println!("Waiting for packets...");
     while let Ok(packet) = cap.next_packet() {
