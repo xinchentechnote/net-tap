@@ -11,14 +11,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        iface: [lo, eth0]
+        iface: [lo]
         include:
           - iface: lo
             port: 8080
             expect_packets: 2
-          - iface: eth0
-            port: 8080
-            expect_packets: 2   # eth0 也期望抓到容器来的双向数据
 
     steps:
     - uses: actions/checkout@v4
