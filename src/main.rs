@@ -1,12 +1,26 @@
-mod util;
-
+use clap::Parser;
 use pcap::{Capture, Device};
+
+mod util;
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Args {
+    /// Network interface name, e.g. eth0 / lo
+    #[arg(short, long, default_value = "lo")]
+    iface: String,
+
+    /// TCP port to filter
+    #[arg(short, long, default_value = "8080")]
+    port: u16,
+}
+
 fn main() {
+    let args = Args::parse();
     let dev = Device::list()
         .unwrap()
         .into_iter()
-        .find(|d| d.name == "lo")
-        .expect("lo not found");
+        .find(|d| d.name == args.iface)
+        .expect(format!("{} not found", args.iface).as_str());
 
     println!("Using device: {}", dev.name);
 
@@ -17,7 +31,8 @@ fn main() {
         .open()
         .unwrap();
 
-    cap.filter("tcp port 8080", true).unwrap();
+    let filter = format!("tcp port {}", args.port);
+    cap.filter(&filter, true).unwrap();
 
     println!("Waiting for packets...");
 

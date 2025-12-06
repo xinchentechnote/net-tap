@@ -1,8 +1,22 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Args {
+    #[arg(long, default_value = "127.0.0.1")]
+    ip: String,
+    #[arg(long, default_value = "8080")]
+    port: u16,
+}
+
 fn main() {
-    let mut stream = TcpStream::connect("127.0.0.1:8080").unwrap();
+    let args = Args::parse();
+    let target = format!("{}:{}", args.ip, args.port);
+    let mut stream = TcpStream::connect(target.as_str()).unwrap();
+    println!("Connect to {}", target);
     stream.write_all(b"hello world").unwrap();
 
     let mut buf = [0; 1024];

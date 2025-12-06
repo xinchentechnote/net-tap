@@ -1,9 +1,20 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
+use clap::Parser;
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Args {
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+    #[arg(long, default_value = "8080")]
+    port: u16,
+}
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
-    println!("server listening on 127.0.0.1:8080");
+    let args = Args::parse();
+    let target = format!("{}:{}", args.host, args.port);
+    let listener = TcpListener::bind(target.as_str()).unwrap();
+    println!("server listening on {}", target);
 
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
