@@ -43,53 +43,46 @@ jobs:
         echo "[7] 服务端收到内容:"
         cat server_output.txt
 
-
   test-net-tap:
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpcap-dev iproute2
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpcap-dev
 
-      - name: Build all binaries
-        run: cargo build --verbose --bins
+    - name: Build all binaries
+      run: cargo build --verbose --bins
 
-      - name: Enable TUN
-        run: |
-          sudo ip tuntap add dev tun0 mode tun user $USER
-          sudo ip addr add 10.0.0.1/24 dev tun0
-          sudo ip link set tun0 up
+    - name: Start net-tap (listen lo)
+      run: |
+        sudo ./target/debug/net-tap > capture.log 2>&1 &
+        echo $! > tap.pid
+        sleep 2
 
-      - name: Start net-tap
-        run: |
-          sudo ./target/debug/net-tap > capture.log 2>&1 &
-          echo $! > tap.pid
-          sleep 2
+    - name: Start echo server
+      run: |
+        ./target/debug/echos > server.log 2>&1 &
+        echo $! > server.pid
+        sleep 1
 
-      - name: Start echo server
-        run: |
-          ./target/debug/echos > server.log 2>&1 &
-          echo $! > server.pid
-          sleep 1
+    - name: Run echo client
+      run: |
+        ./target/debug/echoc > client.log 2>&1
+        cat client.log
 
-      - name: Run echo client
-        run: |
-          ./target/debug/echoc > client.log 2>&1
-          cat client.log
+    - name: Stop processes
+      run: |
+        kill $(cat tap.pid) || true
+        kill $(cat server.pid) || true
 
-      - name: Stop processes
-        run: |
-          kill $(cat tap.pid) || true
-          kill $(cat server.pid) || true
-
-      - name: Show capture
-        run: cat capture.log
+    - name: Show capture log
+      run: cat capture.log

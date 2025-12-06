@@ -1,15 +1,25 @@
+use pcap::Capture;
 use pcap::Device;
 
 fn main() {
-    let dev = Device::list().unwrap()
+    let dev = Device::list()
+        .unwrap()
         .into_iter()
-        .find(|d| d.name == "tun0")
-        .expect("no tun0 found");
+        .find(|d| d.name == "lo")
+        .expect("lo not found");
 
-    let mut cap = dev.open().unwrap();
+    println!("Using device: {}", dev.name);
+
+    let mut cap = Capture::from_device(dev)
+        .unwrap()
+        .promisc(true)
+        .immediate_mode(true)
+        .open()
+        .unwrap();
+
     println!("Waiting for packets...");
 
-    while let Ok(pkt) = cap.next_packet() {
-        println!("Captured {} bytes", pkt.data.len());
+    while let Ok(packet) = cap.next_packet() {
+        println!("Captured {} bytes", packet.data.len());
     }
 }

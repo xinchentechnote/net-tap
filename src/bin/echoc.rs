@@ -1,8 +1,8 @@
-use std::net::TcpStream;
 use std::io::{Read, Write};
+use std::net::TcpStream;
 
 fn main() {
-    let mut stream = TcpStream::connect("10.0.0.1:8080").unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:8080").unwrap();
     stream.write_all(b"hello-tun").unwrap();
 
     let mut buf = [0; 1024];
