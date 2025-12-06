@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     strategy:
       fail-fast: false
       matrix:
@@ -17,7 +18,7 @@ jobs:
             expect_packets: 2
           - iface: eth0
             port: 8080
-            expect_packets: 0    # eth0 无法抓到流量，自动通过
+            expect_packets: 2   # eth0 也期望抓到容器来的双向数据
 
     steps:
     - uses: actions/checkout@v4
@@ -28,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpcap-dev
+        sudo apt-get install -y libpcap-dev docker.io
 
     - name: Build all binaries
       run: cargo build --verbose --bins
@@ -57,31 +58,36 @@ jobs:
         echo $! > server.pid
         sleep 2
 
-    - name: Run echo client
+    - name: Run echo client (inside Docker)
       run: |
-        ./target/debug/echoc --ip ${ip} --port ${port} > client.log 2>&1
+        docker run --rm --network host \
+          -v $PWD/target/debug:/app \
+          ubuntu:22.04 \
+          /app/echoc --ip ${ip} --port ${port} > client.log 2>&1
+
         cat client.log
-        sleep 5
+        sleep 3
 
     - name: Stop processes
       run: |
         kill $(cat tap.pid) || true
         kill $(cat server.pid) || true
-    
+
     - name: Show capture log
       run: cat capture.log
 
     - name: Validate capture.log
       run: |
-         COUNT=$(grep -F "ASCII: hello world" capture.log | wc -l)
-         EXPECT=${{ matrix.expect_packets }}
+        COUNT=$(grep -F "ASCII: hello world" capture.log | wc -l)
+        EXPECT=${{ matrix.expect_packets }}
 
-         echo "Found: $COUNT, Expect: $EXPECT"
+        echo "Found: $COUNT, Expect: $EXPECT"
 
-         if [ "$COUNT" -ne "$EXPECT" ]; then
-           echo "ERROR: Expected $EXPECT occurrences, got $COUNT"
-           exit 1
-         fi
+        if [ "$COUNT" -ne "$EXPECT" ]; then
+          echo "ERROR: Expected $EXPECT occurrences, got $COUNT"
+          exit 1
+        fi
+
     - name: show ip link
       run: |
         ip link
