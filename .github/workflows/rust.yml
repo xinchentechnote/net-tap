@@ -3,7 +3,37 @@ name: net-tap test
 on: [push]
 
 jobs:
-  test:
+  test-pcap:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: 安装抓包工具
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpcap-dev tcpdump netcat
+        sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
+    - name: 生成 TCP 流量并抓包
+      run: |
+        # 后台启动 tcpdump
+        sudo tcpdump -i lo -w test.pcap &
+        sleep 1
+        # 启动简单的 TCP 服务监听 2000 端口
+        echo "hello CI" | nc -l -p 2000 &
+        sleep 1
+        # 向服务发送数据
+        echo "hello from client" | nc localhost 2000
+        # 结束抓包
+        sudo pkill tcpdump
+    - name: 验证抓包结果
+      run: |
+        sudo apt-get install -y libpcap0.8-utils
+        if tcpdump -r test.pcap | grep -q "hello"; then
+          echo "抓包成功"
+        else
+          echo "抓包失败" && exit 1
+        fi
+
+  test-net-tap:
     runs-on: ubuntu-latest
     permissions:
       contents: write
