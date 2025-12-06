@@ -10,7 +10,7 @@ jobs:
     - name: 安装抓包工具
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpcap-dev tcpdump netcat
+        sudo apt-get install -y libpcap-dev tcpdump netcat-openbsd
         sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
     - name: 生成 TCP 流量并抓包
       run: |
