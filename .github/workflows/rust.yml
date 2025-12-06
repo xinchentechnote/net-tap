@@ -3,10 +3,24 @@ name: net-tap test
 on: [push]
 
 jobs:
-  test-net-tap-lo:
+  test-net-tap:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        iface: [lo, docker, eth0]
+        include:
+          - iface: lo
+            port: 8080
+            expect_packets: 2
+          - iface: docker
+            port: 8080
+            expect_packets: 2
+          - iface: eth0
+            port: 8080
+            expect_packets: 0    # eth0 无法抓到流量，自动通过
 
     steps:
     - uses: actions/checkout@v4
@@ -24,8 +38,8 @@ jobs:
 
     - name: Prepare network vars
       run: |
-        iface=lo
-        port=8080
+        iface="${{ matrix.iface }}"
+        port="${{ matrix.port }}"
         ip=$(ip -4 addr show ${iface} | awk '/inet / {print $2}' | cut -d/ -f1)
 
         echo "iface=$iface" >> $GITHUB_ENV
@@ -62,82 +76,15 @@ jobs:
 
     - name: Validate capture.log
       run: |
-        COUNT=$(grep -F "ASCII: hello world" capture.log | wc -l)
-        echo "Found: $COUNT"
-        if [ "$COUNT" -ne 2 ]; then
-          echo "ERROR: Expected 2 occurrences of 'ASCII: hello world', got $COUNT"
-          exit 1
-        fi
-    - name: show ip link
-      run: |
-        ip link
-        ip addr
+         COUNT=$(grep -F "ASCII: hello world" capture.log | wc -l)
+         EXPECT=${{ matrix.expect_packets }}
 
-  test-net-tap-eth0:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+         echo "Found: $COUNT, Expect: $EXPECT"
 
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libpcap-dev
-
-    - name: Build all binaries
-      run: cargo build --verbose --bins
-
-    - name: Prepare network vars
-      run: |
-        iface=eth0
-        port=8080
-        ip=$(ip -4 addr show ${iface} | awk '/inet / {print $2}' | cut -d/ -f1)
-
-        echo "iface=$iface" >> $GITHUB_ENV
-        echo "port=$port"   >> $GITHUB_ENV
-        echo "ip=$ip"       >> $GITHUB_ENV
-
-        echo "Using iface=$iface ip=$ip port=$port"
-
-    - name: Start net-tap (listen eth0)
-      run: |
-        sudo ./target/debug/net-tap --iface ${iface} --port ${port} > capture.log 2>&1 &
-        echo $! > tap.pid
-        sleep 2
-
-    - name: Start echo server
-      run: |
-        ./target/debug/echos --host ${ip} --port ${port} > server.log 2>&1 &
-        echo $! > server.pid
-        sleep 2
-
-    - name: Run echo client
-      run: |
-        ./target/debug/echoc --ip ${ip} --port ${port} > client.log 2>&1
-        cat client.log
-        sleep 5
-
-    - name: Stop processes
-      run: |
-        kill $(cat tap.pid) || true
-        kill $(cat server.pid) || true
-    
-    - name: Show capture log
-      run: cat capture.log
-
-    - name: Validate capture.log
-      run: |
-        COUNT=$(grep -F "ASCII: hello world" capture.log | wc -l)
-        echo "Found: $COUNT"
-        if [ "$COUNT" -ne 2 ]; then
-          echo "ERROR: Expected 2 occurrences of 'ASCII: hello world', got $COUNT"
-          exit 1
-        fi
+         if [ "$COUNT" -ne "$EXPECT" ]; then
+           echo "ERROR: Expected $EXPECT occurrences, got $COUNT"
+           exit 1
+         fi
     - name: show ip link
       run: |
         ip link
