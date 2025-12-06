@@ -72,12 +72,13 @@ jobs:
       run: |
         ./target/debug/echos > server.log 2>&1 &
         echo $! > server.pid
-        sleep 1
+        sleep 2
 
     - name: Run echo client
       run: |
         ./target/debug/echoc > client.log 2>&1
         cat client.log
+        sleep 5
 
     - name: Stop processes
       run: |
