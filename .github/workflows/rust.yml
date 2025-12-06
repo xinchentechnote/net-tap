@@ -44,6 +44,9 @@ jobs:
       run: |
         kill $(cat tap.pid) || true
         kill $(cat server.pid) || true
+    
+    - name: Show capture log
+      run: cat capture.log
 
     - name: Validate capture.log
       run: |
