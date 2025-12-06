@@ -3,46 +3,6 @@ name: net-tap test
 on: [push]
 
 jobs:
-  test-pcap:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Install deps
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y tcpdump netcat-openbsd
-
-    - name: Run tcpdump + nc test
-      run: |
-        echo "[1] 启动 tcpdump"
-        # -U 立即写文件，防止被 timeout 杀死时文件被截断
-        sudo timeout --preserve-status 8s \
-          tcpdump -U -i lo -w capture.pcap &
-        TCPDUMP_PID=$!
-
-        sleep 1
-
-        echo "[2] 启动监听 nc"
-        timeout 5s nc -l 2000 > server_output.txt &
-        NC_PID=$!
-
-        sleep 1
-
-        echo "[3] 发送数据"
-        echo "hello from client" | nc 127.0.0.1 2000
-        sleep 1
-
-        echo "[4] 等待 nc 结束"
-        wait $NC_PID || true
-
-        echo "[5] 等待 tcpdump 自动退出"
-        wait $TCPDUMP_PID || true
-
-        echo "[6] 显示抓包内容"
-        sudo tcpdump -nn -r capture.pcap || true
-
-        echo "[7] 服务端收到内容:"
-        cat server_output.txt
-
   test-net-tap:
     runs-on: ubuntu-latest
     permissions:
