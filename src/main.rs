@@ -1,33 +1,6 @@
+mod util;
+
 use pcap::{Capture, Device};
-
-fn hex_dump(data: &[u8]) {
-    for (i, chunk) in data.chunks(16).enumerate() {
-        print!("{:04x}:  ", i * 16);
-
-        for b in chunk {
-            print!("{:02x} ", b);
-        }
-
-        // align output
-        for _ in 0..(16 - chunk.len()) {
-            print!("   ");
-        }
-
-        print!(" |");
-
-        for b in chunk {
-            let c = if b.is_ascii_graphic() {
-                *b as char
-            } else {
-                '.'
-            };
-            print!("{}", c);
-        }
-
-        println!("|");
-    }
-}
-
 fn main() {
     let dev = Device::list()
         .unwrap()
@@ -51,7 +24,7 @@ fn main() {
     while let Ok(packet) = cap.next_packet() {
         let data = packet.data;
         println!("Captured {} bytes", data.len());
-        hex_dump(data);
+        println!("{}", util::hex::to_hex_string(data));
 
         // ------------------------
         // Ethernet header is 16 bytes
@@ -118,7 +91,5 @@ fn main() {
             println!("Payload ({} bytes): {:02x?}", payload.len(), payload);
             println!("ASCII: {}", String::from_utf8_lossy(payload));
         }
-
-        println!("----------------------------------------------");
     }
 }
