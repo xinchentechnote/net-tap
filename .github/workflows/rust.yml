@@ -22,11 +22,20 @@ jobs:
     - name: Build all binaries
       run: cargo build --verbose --bins
 
-    - name: Start net-tap (listen lo)
+    - name: Prepare network vars
       run: |
         iface=lo
         port=8080
         ip=$(ip -4 addr show ${iface} | awk '/inet / {print $2}' | cut -d/ -f1)
+
+        echo "iface=$iface" >> $GITHUB_ENV
+        echo "port=$port"   >> $GITHUB_ENV
+        echo "ip=$ip"       >> $GITHUB_ENV
+
+        echo "Using iface=$iface ip=$ip port=$port"
+
+    - name: Start net-tap (listen lo)
+      run: |
         sudo ./target/debug/net-tap --iface ${iface} --port ${port} > capture.log 2>&1 &
         echo $! > tap.pid
         sleep 2
