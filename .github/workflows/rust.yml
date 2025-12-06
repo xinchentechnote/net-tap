@@ -3,7 +3,7 @@ name: net-tap test
 on: [push]
 
 jobs:
-  test-net-tap:
+  test-net-tap-lo:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -24,19 +24,22 @@ jobs:
 
     - name: Start net-tap (listen lo)
       run: |
-        sudo ./target/debug/net-tap > capture.log 2>&1 &
+        iface=lo
+        port=8080
+        ip=$(ip -4 addr show ${iface} | awk '/inet / {print $2}' | cut -d/ -f1)
+        sudo ./target/debug/net-tap --iface ${iface} --port ${port} > capture.log 2>&1 &
         echo $! > tap.pid
         sleep 2
 
     - name: Start echo server
       run: |
-        ./target/debug/echos > server.log 2>&1 &
+        ./target/debug/echos --host ${ip} --port ${port} > server.log 2>&1 &
         echo $! > server.pid
         sleep 2
 
     - name: Run echo client
       run: |
-        ./target/debug/echoc > client.log 2>&1
+        ./target/debug/echoc --ip ${ip} --port ${port} > client.log 2>&1
         cat client.log
         sleep 5
 
