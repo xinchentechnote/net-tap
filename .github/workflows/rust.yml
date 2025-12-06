@@ -56,3 +56,7 @@ jobs:
           echo "ERROR: Expected 2 occurrences of 'ASCII: hello world', got $COUNT"
           exit 1
         fi
+    - name: show ip link
+      run: |
+        ip link
+        ip addr
