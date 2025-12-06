@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        iface: [lo, docker, eth0]
+        iface: [lo, docker0, eth0]
         include:
           - iface: lo
             port: 8080
@@ -48,7 +48,7 @@ jobs:
 
         echo "Using iface=$iface ip=$ip port=$port"
 
-    - name: Start net-tap (listen lo)
+    - name: Start net-tap
       run: |
         sudo ./target/debug/net-tap --iface ${iface} --port ${port} > capture.log 2>&1 &
         echo $! > tap.pid
