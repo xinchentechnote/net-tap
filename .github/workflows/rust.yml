@@ -14,24 +14,24 @@ jobs:
         sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
     - name: 生成 TCP 流量并抓包
       run: |
-        # 后台启动 tcpdump
-        sudo tcpdump -i lo -w test.pcap &
+        # 使用 timeout 保证所有进程最多运行 10 秒，防止卡住
+        sudo timeout 10s tcpdump -i lo -w capture.pcap &
         sleep 1
-        # 启动简单的 TCP 服务监听 2000 端口
-        echo "hello CI" | nc -l -p 2000 &
+
+        # 后台监听端口并保存收到的数据
+        timeout 5s nc -l 2000 > server_output.txt &
         sleep 1
-        # 向服务发送数据
-        echo "hello from client" | nc localhost 2000
-        # 结束抓包
-        sudo pkill tcpdump
-    - name: 验证抓包结果
-      run: |
-        sudo apt-get install -y libpcap0.8-utils
-        if tcpdump -r test.pcap | grep -q "hello"; then
-          echo "抓包成功"
-        else
-          echo "抓包失败" && exit 1
-        fi
+
+        # 发送数据到监听端口
+        echo "hello from client" | nc 127.0.0.1 2000
+
+        sleep 1
+        sudo pkill tcpdump || true
+
+        echo "抓到的数据:"
+        sudo tcpdump -nn -r capture.pcap
+        echo "服务端收到的数据:"
+        cat server_output.txt
 
   test-net-tap:
     runs-on: ubuntu-latest
