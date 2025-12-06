@@ -15,7 +15,7 @@ jobs:
           - iface: lo
             port: 8080
             expect_packets: 2
-          - iface: docker
+          - iface: docker0
             port: 8080
             expect_packets: 2
           - iface: eth0
