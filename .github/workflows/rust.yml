@@ -6,32 +6,43 @@ jobs:
   test-pcap:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: 安装抓包工具
+    - name: Install deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y libpcap-dev tcpdump netcat-openbsd
-        sudo setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
-    - name: 生成 TCP 流量并抓包
+        sudo apt-get install -y tcpdump netcat-openbsd
+
+    - name: Run tcpdump + nc test
       run: |
-        # 使用 timeout 保证所有进程最多运行 10 秒，防止卡住
-        sudo timeout 10s tcpdump -i lo -w capture.pcap &
+        echo "[1] 启动 tcpdump"
+        # -U 立即写文件，防止被 timeout 杀死时文件被截断
+        sudo timeout --preserve-status 8s \
+          tcpdump -U -i lo -w capture.pcap &
+        TCPDUMP_PID=$!
+
         sleep 1
 
-        # 后台监听端口并保存收到的数据
+        echo "[2] 启动监听 nc"
         timeout 5s nc -l 2000 > server_output.txt &
+        NC_PID=$!
+
         sleep 1
 
-        # 发送数据到监听端口
+        echo "[3] 发送数据"
         echo "hello from client" | nc 127.0.0.1 2000
-
         sleep 1
-        sudo pkill tcpdump || true
 
-        echo "抓到的数据:"
-        sudo tcpdump -nn -r capture.pcap
-        echo "服务端收到的数据:"
+        echo "[4] 等待 nc 结束"
+        wait $NC_PID || true
+
+        echo "[5] 等待 tcpdump 自动退出"
+        wait $TCPDUMP_PID || true
+
+        echo "[6] 显示抓包内容"
+        sudo tcpdump -nn -r capture.pcap || true
+
+        echo "[7] 服务端收到内容:"
         cat server_output.txt
+
 
   test-net-tap:
     runs-on: ubuntu-latest
