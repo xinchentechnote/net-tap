@@ -1,0 +1,1 @@
+gt-auto --casePath testcase/sse/sse_test_case.csv --config testcase/sse/gw-auto-sse.toml
