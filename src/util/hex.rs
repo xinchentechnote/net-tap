@@ -16,7 +16,7 @@ pub fn to_hex_string(data: &[u8]) -> String {
 
         // Padding if less than 16 bytes
         if chunk.len() < 16 {
-            let pad = (16 - chunk.len()) * 3 - 1;
+            let pad = (16 - chunk.len()) * 3;
             out.push_str(&" ".repeat(pad));
         }
 
@@ -49,7 +49,19 @@ mod tests {
         let s = to_hex_string(data);
 
         let expected = "\
-0000:  68 65 6c 6c 6f                                  |hello|
+0000:  68 65 6c 6c 6f                                   |hello|
+";
+
+        assert_eq!(s, expected);
+    }
+    #[test]
+    fn test_hex_string_multi_line() {
+        let data = b"0123456789abcdefhello";
+        let s = to_hex_string(data);
+
+        let expected = "\
+0000:  30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66  |0123456789abcdef|
+0010:  68 65 6c 6c 6f                                   |hello|
 ";
 
         assert_eq!(s, expected);

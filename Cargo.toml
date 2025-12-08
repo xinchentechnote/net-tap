@@ -7,3 +7,11 @@ edition = "2024"
 clap = { version = "4.5.53", features = ["derive"] }
 libc = "0.2.178"
 pcap = "2.4.0"
+pnet = "0.35.0"
+pnet_datalink = "0.35.0"
+pnet_packet = "0.35.0"
+tracing = "0.1.43"
+tracing-subscriber = "0.3.22"
+sse-binary = { git = "https://github.com/xinchentechnote/fin-proto-rs", tag = "v0.5.0" }
+binary-codec = { git = "https://github.com/xinchentechnote/fin-proto-rs", tag = "v0.5.0" }
+bytes = "1.11.0"
