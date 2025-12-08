@@ -1,5 +1,3 @@
-use binary_codec::BinaryCodec;
-use bytes::{Buf, BytesMut};
 use clap::Parser;
 use pcap::{Capture, Device};
 use pnet::packet::{
@@ -7,60 +5,25 @@ use pnet::packet::{
     ipv4::Ipv4Packet,
 };
 use pnet_packet::{Packet, tcp::TcpPacket};
-use sse_binary::sse_binary::SseBinary;
 use tracing::info;
 
+use crate::proto::proto::FrameDecoder;
+
+mod proto;
 mod util;
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Args {
     /// Network interface name, e.g. eth0 / lo
-    #[arg(short, long, default_value = "lo")]
+    #[arg(long, default_value = "lo")]
     iface: String,
 
-    #[arg(short, long, default_value = "txt")]
+    #[arg(long, default_value = "txt")]
     proto: String,
 
     /// TCP port to filter
-    #[arg(short, long, default_value = "8080")]
+    #[arg(long, default_value = "8080")]
     port: u16,
-}
-
-pub struct FrameDecoder {
-    buffer: BytesMut,
-}
-
-impl FrameDecoder {
-    pub fn new() -> Self {
-        Self {
-            buffer: BytesMut::with_capacity(4096),
-        }
-    }
-    pub fn feed(&mut self, data: &[u8]) {
-        self.buffer.extend_from_slice(data);
-    }
-
-    pub fn next_frame(&mut self) -> Option<SseBinary> {
-        if self.buffer.len() < 16 {
-            return None;
-        }
-
-        let mut header = &self.buffer[..16];
-        let _msg_type = header.get_u32();
-        let _msg_seq_num = header.get_u64();
-        let msg_body_len = header.get_u32() as usize;
-
-        let total_len = 16 + msg_body_len + 4;
-
-        if self.buffer.len() < total_len {
-            return None;
-        }
-
-        let msg_bytes = self.buffer.split_to(total_len).freeze();
-
-        let mut msg_buf = msg_bytes.clone();
-        SseBinary::decode(&mut msg_buf)
-    }
 }
 
 fn process_ip_packet<P: pnet_packet::Packet>(
