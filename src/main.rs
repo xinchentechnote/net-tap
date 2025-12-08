@@ -7,7 +7,7 @@ use pnet::packet::{
 use pnet_packet::{Packet, tcp::TcpPacket};
 use tracing::info;
 
-use crate::proto::proto::FrameDecoder;
+use crate::proto::proto::{DecodedFrame, FrameDecoder};
 
 mod proto;
 mod util;
@@ -18,7 +18,7 @@ struct Args {
     #[arg(long, default_value = "lo")]
     iface: String,
 
-    #[arg(long, default_value = "txt")]
+    #[arg(long, default_value = "ascii")]
     proto: String,
 
     /// TCP port to filter
@@ -47,7 +47,10 @@ fn process_ip_packet<P: pnet_packet::Packet>(
         if !payload.is_empty() {
             frame_decoder.feed(payload);
             while let Some(msg) = frame_decoder.next_frame() {
-                info!("Payload : {:?}", msg);
+                match msg {
+                    DecodedFrame::Ascii(s) => info!("ASCII: {}", s),
+                    DecodedFrame::Sse(bin) => info!("SSE: {:?}", bin),
+                }
             }
         }
     }
@@ -75,7 +78,7 @@ fn main() {
     cap.filter(&filter, true).unwrap();
 
     info!("Waiting for packets...");
-    let mut frame_decoder = FrameDecoder::new();
+    let mut frame_decoder = FrameDecoder::new(&args.proto);
     while let Ok(packet) = cap.next_packet() {
         let data = packet.data;
         info!("Captured {} bytes", data.len());

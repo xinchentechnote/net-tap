@@ -17,7 +17,7 @@ fn main() {
     let target = format!("{}:{}", args.ip, args.port);
     let mut stream = TcpStream::connect(target.as_str()).unwrap();
     println!("Connect to {}", target);
-    stream.write_all(b"hello world").unwrap();
+    stream.write_all(b"hello world\n").unwrap();
 
     let mut buf = [0; 1024];
     let n = stream.read(&mut buf).unwrap();
