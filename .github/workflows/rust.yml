@@ -29,7 +29,9 @@ jobs:
         sudo apt-get install -y libpcap-dev
 
     - name: Build all binaries
-      run: cargo build --verbose --bins
+      run: |
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        cargo build --verbose --bins
 
     - name: Prepare network vars
       run: |
