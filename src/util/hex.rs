@@ -1,4 +1,4 @@
-pub fn to_hex_string(data: &[u8]) -> String {
+pub fn to_hex_str_veiw(data: &[u8]) -> String {
     let mut out = String::new();
     let mut offset = 0;
 
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn test_hex_string() {
         let data = b"hello";
-        let s = to_hex_string(data);
+        let s = to_hex_str_veiw(data);
 
         let expected = "\
 0000:  68 65 6c 6c 6f                                   |hello|
@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn test_hex_string_multi_line() {
         let data = b"0123456789abcdefhello";
-        let s = to_hex_string(data);
+        let s = to_hex_str_veiw(data);
 
         let expected = "\
 0000:  30 31 32 33 34 35 36 37 38 39 61 62 63 64 65 66  |0123456789abcdef|

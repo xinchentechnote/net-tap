@@ -82,7 +82,7 @@ fn main() {
     while let Ok(packet) = cap.next_packet() {
         let data = packet.data;
         info!("Captured {} bytes", data.len());
-        info!("\n{}", util::hex::to_hex_string(data));
+        info!("\n{}", util::hex::to_hex_str_veiw(data));
         let ethernet = EthernetPacket::new(data);
         match ethernet {
             Some(ep) => match ep.get_ethertype() {
