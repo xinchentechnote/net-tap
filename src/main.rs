@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use clap::Parser;
 use pcap::{Capture, Device};
 use pnet::packet::{
@@ -5,11 +7,16 @@ use pnet::packet::{
     ipv4::Ipv4Packet,
 };
 use pnet_packet::{Packet, tcp::TcpPacket};
+use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::proto::proto::{DecodedFrame, FrameDecoder};
+use crate::{
+    proto::proto::{DecodedFrame, FrameDecoder},
+    record::types::CaptureRecord,
+};
 
 mod proto;
+mod record;
 mod util;
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -56,7 +63,9 @@ fn process_ip_packet<P: pnet_packet::Packet>(
     }
 }
 
-fn main() {
+#[tokio::main]
+
+async fn main() {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
     let dev = Device::list()
@@ -66,6 +75,12 @@ fn main() {
         .expect(format!("{} not found", args.iface).as_str());
 
     info!("Using device: {}", dev.name);
+
+    let (tx, rx) = mpsc::channel::<CaptureRecord>(4096);
+
+    tokio::spawn(async move {
+        record::data_record::run_file_writer(rx, "record_data.bin").await;
+    });
 
     let mut cap = Capture::from_device(dev)
         .unwrap()
@@ -79,9 +94,30 @@ fn main() {
 
     info!("Waiting for packets...");
     let mut frame_decoder = FrameDecoder::new(&args.proto);
+    let mut seq = 0;
     while let Ok(packet) = cap.next_packet() {
         let data = packet.data;
         info!("Captured {} bytes", data.len());
+
+        seq += 1;
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64;
+
+        let rec = CaptureRecord {
+            ts_nanos: ts,
+            iface: args.iface.clone(),
+            seq,
+            data: packet.data.to_vec(),
+        };
+
+        // 异步写入队列
+        if tx.send(rec).await.is_err() {
+            eprintln!("Writer exited");
+            break;
+        }
+
         info!("\n{}", util::hex::to_hex_str_veiw(data));
         let ethernet = EthernetPacket::new(data);
         match ethernet {
