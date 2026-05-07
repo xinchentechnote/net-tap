@@ -60,6 +60,8 @@ fn process_ip_packet<P: pnet_packet::Packet>(
                     DecodedFrame::Sse(bin) => info!("SSE: {:?}", bin),
                 }
             }
+        } else {
+            info!("Payload is empty");
         }
     } else {
         info!("NOT TCP packet: {} -> {}", src_ip, dst_ip);
