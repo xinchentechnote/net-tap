@@ -64,22 +64,11 @@ dependencies = [
 [[package]]
 name = "binary-codec"
 version = "0.1.0"
-source = "git+https://github.com/xinchentechnote/fin-proto-rs?tag=v0.5.0#0f567981a9c0b9f9e6266a49163c34c58e860b92"
+source = "git+https://github.com/xinchentechnote/fin-proto-runtime-bin-rs.git?tag=v0.1.0#76e2999c2619adc46d5bad9aee3bb3e0e5863d3d"
 dependencies = [
- "binary-codec-macro",
  "bytes",
  "crc",
  "once_cell",
-]
-
-[[package]]
-name = "binary-codec-macro"
-version = "0.1.0"
-source = "git+https://github.com/xinchentechnote/fin-proto-rs?tag=v0.5.0#0f567981a9c0b9f9e6266a49163c34c58e860b92"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -640,7 +629,7 @@ dependencies = [
 [[package]]
 name = "sse-binary"
 version = "0.1.0"
-source = "git+https://github.com/xinchentechnote/fin-proto-rs?tag=v0.5.0#0f567981a9c0b9f9e6266a49163c34c58e860b92"
+source = "git+https://github.com/xinchentechnote/fin-proto-sse-bin-rs.git?tag=v0.1.0#7e6b8e78cc9b506d6ee2ade188e7e1f800f108ca"
 dependencies = [
  "binary-codec",
  "byteorder",
