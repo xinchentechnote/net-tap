@@ -6,6 +6,7 @@ use pnet::packet::{
     ethernet::{EtherTypes, EthernetPacket},
     ipv4::Ipv4Packet,
 };
+use pnet_packet::ipv6::Ipv6Packet;
 use pnet_packet::{Packet, tcp::TcpPacket};
 use tokio::sync::mpsc;
 use tracing::info;
@@ -60,6 +61,43 @@ fn process_ip_packet<P: pnet_packet::Packet>(
                 }
             }
         }
+    } else {
+        info!("NOT TCP packet: {} -> {}", src_ip, dst_ip);
+    }
+}
+
+fn handle_loopback(data: &[u8], frame_decoder: &mut FrameDecoder) {
+    // BSD loopback: first 4 bytes = address family
+    if data.len() < 5 {
+        return;
+    }
+
+    let af = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    info!("AF: {}", af);
+    match af {
+        2 => {
+            // AF_INET
+            if let Some(ipv4) = Ipv4Packet::new(&data[4..]) {
+                process_ip_packet(
+                    &ipv4,
+                    ipv4.get_source().to_string(),
+                    ipv4.get_destination().to_string(),
+                    frame_decoder,
+                );
+            }
+        }
+        30 => {
+            // AF_INET6
+            if let Some(ipv6) = Ipv6Packet::new(&data[4..]) {
+                process_ip_packet(
+                    &ipv6,
+                    ipv6.get_source().to_string(),
+                    ipv6.get_destination().to_string(),
+                    frame_decoder,
+                );
+            }
+        }
+        _ => {}
     }
 }
 
@@ -95,6 +133,7 @@ async fn main() {
     info!("Waiting for packets...");
     let mut frame_decoder = FrameDecoder::new(&args.proto);
     let mut seq = 0;
+    let link_type = cap.get_datalink();
     while let Ok(packet) = cap.next_packet() {
         let data = packet.data;
         info!("Captured {} bytes", data.len());
@@ -119,29 +158,47 @@ async fn main() {
         }
 
         info!("\n{}", util::hex::to_hex_str_veiw(data));
-        let ethernet = EthernetPacket::new(data);
-        match ethernet {
-            Some(ep) => match ep.get_ethertype() {
-                EtherTypes::Ipv4 => {
-                    if let Some(ipv4) = Ipv4Packet::new(ep.payload()) {
-                        process_ip_packet(
-                            &ipv4,
-                            ipv4.get_source().to_string(),
-                            ipv4.get_destination().to_string(),
-                            &mut frame_decoder,
-                        );
+        match link_type {
+            pcap::Linktype::ETHERNET => {
+                let ethernet = EthernetPacket::new(data);
+                match ethernet {
+                    Some(ep) => match ep.get_ethertype() {
+                        EtherTypes::Ipv4 => {
+                            if let Some(ipv4) = Ipv4Packet::new(ep.payload()) {
+                                process_ip_packet(
+                                    &ipv4,
+                                    ipv4.get_source().to_string(),
+                                    ipv4.get_destination().to_string(),
+                                    &mut frame_decoder,
+                                );
+                            }
+                        }
+                        EtherTypes::Ipv6 => {
+                            if let Some(ipv6) = Ipv6Packet::new(ep.payload()) {
+                                process_ip_packet(
+                                    &ipv6,
+                                    ipv6.get_source().to_string(),
+                                    ipv6.get_destination().to_string(),
+                                    &mut frame_decoder,
+                                );
+                            }
+                            continue;
+                        }
+                        _ => {
+                            info!("unhandled ethertype: {:?}", ep.get_ethertype());
+                            continue;
+                        }
+                    },
+                    None => {
+                        info!("other packet");
+                        continue;
                     }
                 }
-                EtherTypes::Ipv6 => {
-                    continue;
-                }
-                _ => {
-                    continue;
-                }
-            },
-            None => {
-                continue;
             }
+            pcap::Linktype::NULL => {
+                handle_loopback(data, &mut frame_decoder);
+            }
+            _ => {}
         }
     }
 }
