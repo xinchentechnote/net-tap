@@ -62,6 +62,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.102"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+
+[[package]]
 name = "binary-codec"
 version = "0.1.0"
 source = "git+https://github.com/xinchentechnote/fin-proto-runtime-bin-rs.git?tag=v0.1.0#76e2999c2619adc46d5bad9aee3bb3e0e5863d3d"
@@ -290,6 +296,7 @@ dependencies = [
 name = "net-tap"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "binary-codec",
  "byteorder",
  "bytes",

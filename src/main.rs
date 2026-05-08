@@ -1,23 +1,23 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::{HashMap, HashSet},
+    net::IpAddr,
+};
 
 use clap::Parser;
-use pcap::{Capture, Device};
+use pcap::Device;
 use pnet::packet::{
     ethernet::{EtherTypes, EthernetPacket},
     ipv4::Ipv4Packet,
 };
-use pnet_packet::ipv6::Ipv6Packet;
 use pnet_packet::{Packet, tcp::TcpPacket};
-use tokio::sync::mpsc;
+use pnet_packet::{ipv6::Ipv6Packet, tcp::TcpFlags};
 use tracing::info;
 
-use crate::{
-    proto::proto::{DecodedFrame, FrameDecoder},
-    record::types::CaptureRecord,
-};
+use crate::tcp::tcp::{TcpPacketWraper, TcpSession, TcpSessionKey};
 
 mod proto;
 mod record;
+mod tcp;
 mod util;
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -33,73 +33,204 @@ struct Args {
     #[arg(long, default_value = "8080")]
     port: u16,
 }
+// pub type OnTcpPacket = fn(&TcpPacketWraper<'_>);
 
-fn process_ip_packet<P: pnet_packet::Packet>(
-    ip_packet: &P,
-    src_ip: String,
-    dst_ip: String,
-    frame_decoder: &mut FrameDecoder,
-) {
-    let payload = ip_packet.payload();
-
-    if let Some(tcp) = TcpPacket::new(payload) {
-        let src_port = tcp.get_source();
-        let dst_port = tcp.get_destination();
-        let payload = tcp.payload();
-
-        info!(
-            "TCP packet: {}:{} -> {}:{}",
-            src_ip, src_port, dst_ip, dst_port
-        );
-
-        if !payload.is_empty() {
-            frame_decoder.feed(payload);
-            while let Some(msg) = frame_decoder.next_frame() {
-                match msg {
-                    DecodedFrame::Ascii(s) => info!("ASCII: {}", s),
-                    DecodedFrame::Sse(bin) => info!("SSE: {:?}", bin),
-                }
-            }
-        } else {
-            info!("Payload is empty");
-        }
-    } else {
-        info!("NOT TCP packet: {} -> {}", src_ip, dst_ip);
-    }
+pub struct TcpPcapEngine {
+    pub device: String,
+    pub bpf: String,
+    pub link_type: pcap::Linktype,
+    pub server_ports: HashSet<u16>,
+    sessions: HashMap<TcpSessionKey, TcpSession>,
+    // pub on_tcp_packet: OnTcpPacket,
 }
 
-fn handle_loopback(data: &[u8], frame_decoder: &mut FrameDecoder) {
-    // BSD loopback: first 4 bytes = address family
-    if data.len() < 5 {
-        return;
+impl TcpPcapEngine {
+    pub fn new(
+        device: impl Into<String>,
+        bpf: impl Into<String>,
+        // on_tcp_packet: OnTcpPacket,
+    ) -> Self {
+        Self {
+            device: device.into(),
+            bpf: bpf.into(),
+            // on_tcp_packet,
+            link_type: pcap::Linktype::NULL,
+            server_ports: HashSet::new(),
+            sessions: HashMap::new(),
+        }
     }
 
-    let af = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-    info!("AF: {}", af);
-    match af {
-        2 => {
-            // AF_INET
-            if let Some(ipv4) = Ipv4Packet::new(&data[4..]) {
-                process_ip_packet(
-                    &ipv4,
-                    ipv4.get_source().to_string(),
-                    ipv4.get_destination().to_string(),
-                    frame_decoder,
-                );
+    pub fn start(&mut self) -> anyhow::Result<()> {
+        use pcap::{Active, Capture};
+
+        let mut cap: Capture<Active> = Capture::from_device(self.device.as_str())?
+            .promisc(true)
+            .snaplen(65535)
+            .timeout(100)
+            .open()?;
+
+        cap.filter(&self.bpf, true)?;
+        self.link_type = cap.get_datalink();
+        loop {
+            let packet = match cap.next_packet() {
+                Ok(pkt) => pkt,
+                Err(pcap::Error::TimeoutExpired) => continue,
+                Err(e) => return Err(e.into()),
+            };
+
+            self.handle_packet(packet.data);
+        }
+    }
+
+    fn handle_packet(&mut self, data: &[u8]) {
+        let ip_data = match self.link_type {
+            pcap::Linktype::ETHERNET => {
+                if let Some(eth) = EthernetPacket::new(data) {
+                    match eth.get_ethertype() {
+                        EtherTypes::Ipv4 => &data[14..],
+                        EtherTypes::Ipv6 => &data[14..],
+                        EtherTypes::Vlan => {
+                            todo!()
+                        }
+                        _ => {
+                            return;
+                        }
+                    }
+                } else {
+                    return;
+                }
+            }
+            pcap::Linktype::LINUX_SLL => {
+                // SLL 头 16 字节
+                let protocol = u16::from_be_bytes([data[14], data[15]]);
+                match protocol {
+                    0x0800 => &data[16..], // IPv4
+                    0x86DD => &data[16..], // IPv6
+                    _ => return,
+                }
+            }
+            pcap::Linktype::NULL => {
+                let af = u32::from_ne_bytes(data[0..4].try_into().unwrap());
+                match af {
+                    2 | 30 => &data[4..],
+                    _ => return,
+                }
+            }
+            pcap::Linktype::RAW => data,
+            _ => {
+                return;
+            }
+        };
+        self.handle_ip_packet(ip_data);
+    }
+
+    fn handle_ip_packet(&mut self, ip_data: &[u8]) {
+        if ip_data.is_empty() {
+            return;
+        }
+        match ip_data[0] >> 4 {
+            4 => {
+                if let Some(ip) = Ipv4Packet::new(ip_data) {
+                    self.handle_tcp_packet(
+                        IpAddr::V4(ip.get_source()),
+                        IpAddr::V4(ip.get_destination()),
+                        &ip,
+                    );
+                }
+            }
+            6 => {
+                if let Some(ip) = Ipv6Packet::new(ip_data) {
+                    self.handle_tcp_packet(
+                        IpAddr::V6(ip.get_source()),
+                        IpAddr::V6(ip.get_destination()),
+                        &ip,
+                    );
+                }
+            }
+            _ => {
+                return;
             }
         }
-        30 => {
-            // AF_INET6
-            if let Some(ipv6) = Ipv6Packet::new(&data[4..]) {
-                process_ip_packet(
-                    &ipv6,
-                    ipv6.get_source().to_string(),
-                    ipv6.get_destination().to_string(),
-                    frame_decoder,
-                );
+    }
+
+    fn handle_tcp_packet<P: pnet_packet::Packet>(
+        &mut self,
+        src_ip: IpAddr,
+        dst_ip: IpAddr,
+        ip_packet: &P,
+    ) {
+        let payload = ip_packet.payload();
+        if let Some(tcp) = TcpPacket::new(payload) {
+            let src_port = tcp.get_source();
+            let dst_port = tcp.get_destination();
+            info!(
+                "TCP packet: {}:{} -> {}:{}, seq :{}, ack :{}",
+                src_ip, src_port, dst_ip, dst_port, tcp.get_sequence(), tcp.get_acknowledgement()
+            );
+            let tpw = TcpPacketWraper::new(src_ip, dst_ip, tcp);
+            self.on_tcp_packet(&tpw);
+        }
+    }
+
+    fn on_tcp_packet(&mut self, pkt: &TcpPacketWraper<'_>) {
+        println!("got tcp payload: {} bytes", pkt.origin.payload().len());
+        let flags = pkt.origin.get_flags();
+        if flags & TcpFlags::SYN != 0 && flags & TcpFlags::ACK == 0 {
+            //第一次挥手
+            //记录server端口
+            self.server_ports.insert(pkt.origin.get_destination());
+            let session = self.add_session(
+                pkt.src_ip.clone(),
+                pkt.origin.get_source(),
+                pkt.dst_ip.clone(),
+                pkt.origin.get_destination(),
+            );
+        } else {
+            let session_id = if self.server_ports.contains(&pkt.origin.get_destination()) {
+                //c -> s
+                TcpSessionKey::new(
+                    pkt.src_ip.clone(),
+                    pkt.origin.get_source(),
+                    pkt.dst_ip.clone(),
+                    pkt.origin.get_destination(),
+                )
+            } else {
+                //s -> c
+                TcpSessionKey::new(
+                    pkt.dst_ip.clone(),
+                    pkt.origin.get_destination(),
+                    pkt.src_ip.clone(),
+                    pkt.origin.get_source(),
+                )
+            };
+            if let Some(session) = self.sessions.get_mut(&session_id) {
+                session.update(&pkt.origin);
             }
         }
-        _ => {}
+    }
+
+    fn add_session(
+        &mut self,
+        client_ip: IpAddr,
+        client_port: u16,
+        server_ip: IpAddr,
+        server_port: u16,
+    ) -> &mut TcpSession {
+        self.sessions
+            .entry(TcpSessionKey {
+                client_ip,
+                client_port,
+                server_ip,
+                server_port,
+            })
+            .or_insert_with(|| {
+                TcpSession::new(
+                    client_ip.clone(),
+                    client_port,
+                    server_ip.clone(),
+                    server_port,
+                )
+            })
     }
 }
 
@@ -115,92 +246,6 @@ async fn main() {
         .expect(format!("{} not found", args.iface).as_str());
 
     info!("Using device: {}", dev.name);
-
-    let (tx, rx) = mpsc::channel::<CaptureRecord>(4096);
-
-    tokio::spawn(async move {
-        record::data_record::run_file_writer(rx, "record_data.bin").await;
-    });
-
-    let mut cap = Capture::from_device(dev)
-        .unwrap()
-        .promisc(true)
-        .immediate_mode(true)
-        .open()
-        .unwrap();
-
-    let filter = format!("tcp port {}", args.port);
-    cap.filter(&filter, true).unwrap();
-
-    info!("Waiting for packets...");
-    let mut frame_decoder = FrameDecoder::new(&args.proto);
-    let mut seq = 0;
-    let link_type = cap.get_datalink();
-    while let Ok(packet) = cap.next_packet() {
-        let data = packet.data;
-        info!("Captured {} bytes", data.len());
-
-        seq += 1;
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u64;
-
-        let rec = CaptureRecord {
-            ts_nanos: ts,
-            iface: args.iface.clone(),
-            seq,
-            data: packet.data.to_vec(),
-        };
-
-        // 异步写入队列
-        if tx.send(rec).await.is_err() {
-            eprintln!("Writer exited");
-            break;
-        }
-
-        info!("\n{}", util::hex::to_hex_str_veiw(data));
-        match link_type {
-            pcap::Linktype::ETHERNET => {
-                let ethernet = EthernetPacket::new(data);
-                match ethernet {
-                    Some(ep) => match ep.get_ethertype() {
-                        EtherTypes::Ipv4 => {
-                            if let Some(ipv4) = Ipv4Packet::new(ep.payload()) {
-                                process_ip_packet(
-                                    &ipv4,
-                                    ipv4.get_source().to_string(),
-                                    ipv4.get_destination().to_string(),
-                                    &mut frame_decoder,
-                                );
-                            }
-                        }
-                        EtherTypes::Ipv6 => {
-                            if let Some(ipv6) = Ipv6Packet::new(ep.payload()) {
-                                process_ip_packet(
-                                    &ipv6,
-                                    ipv6.get_source().to_string(),
-                                    ipv6.get_destination().to_string(),
-                                    &mut frame_decoder,
-                                );
-                            }
-                            continue;
-                        }
-                        _ => {
-                            info!("unhandled ethertype: {:?}", ep.get_ethertype());
-                            continue;
-                        }
-                    },
-                    None => {
-                        info!("other packet");
-                        continue;
-                    }
-                }
-            }
-            pcap::Linktype::NULL => {
-                handle_loopback(data, &mut frame_decoder);
-            }
-            _ => {}
-        }
-    }
+    let mut ps = TcpPcapEngine::new(args.iface, format!("tcp port {}", args.port));
+    let _ = ps.start();
 }
