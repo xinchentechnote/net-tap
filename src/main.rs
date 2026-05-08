@@ -39,10 +39,6 @@ fn init_tracing() {
 }
 
 
-pub fn on_stream_packet(key: StreamKey, data: &[u8]) {
-    info!("{} rev \n{}", key, util::hex::to_hex_str_veiw(data))
-}
-
 #[tokio::main]
 
 async fn main() {
@@ -51,7 +47,9 @@ async fn main() {
     let mut ps = TcpPcapEngine::new(
         args.iface,
         format!("tcp port {}", args.port),
-        on_stream_packet,
+        |key: StreamKey, data: &[u8]| {
+            info!("{} rev \n{}", key, util::hex::to_hex_str_veiw(data));
+        },
     );
     let _ = ps.start();
 }

@@ -3,7 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
     net::IpAddr,
 };
-
+use std::sync::Arc;
 use pcap::{Active, Capture};
 use pnet::packet::{
     ethernet::{EtherTypes, EthernetPacket},
@@ -13,7 +13,7 @@ use pnet_packet::{Packet, tcp::TcpPacket};
 use pnet_packet::{ipv6::Ipv6Packet, tcp::TcpFlags};
 use tracing::info;
 
-use crate::tcp::tcp::{OnStreamPacket, TcpPacketWithAddr, TcpSession, TcpSessionKey};
+use crate::tcp::tcp::{OnStreamPacket, StreamKey, TcpPacketWithAddr, TcpSession, TcpSessionKey};
 
 
 pub struct TcpPcapEngine {
@@ -26,18 +26,20 @@ pub struct TcpPcapEngine {
 }
 
 impl TcpPcapEngine {
-    pub fn new(
+    pub fn new<F>(
         device: impl Into<String>,
         bpf: impl Into<String>,
-        on_stream_packet: OnStreamPacket,
-    ) -> Self {
+        on_stream_packet: F) -> Self
+    where
+        F: Fn(StreamKey, &[u8]) + Send + Sync + 'static,
+    {
         Self {
             device: device.into(),
             bpf: bpf.into(),
             link_type: pcap::Linktype::NULL,
             server_ports: HashSet::new(),
             sessions: HashMap::new(),
-            on_stream_packet,
+            on_stream_packet: Arc::new(on_stream_packet),
         }
     }
 
@@ -215,7 +217,7 @@ impl TcpPcapEngine {
                     client_port,
                     server_ip.clone(),
                     server_port,
-                    self.on_stream_packet,
+                    self.on_stream_packet.clone(),
                 )
             })
     }

@@ -1,12 +1,13 @@
 use std::{collections::HashMap, fmt, net::IpAddr};
 use std::fmt::Formatter;
+use std::sync::Arc;
 use pnet_packet::{
     Packet,
     tcp::{TcpFlags, TcpPacket},
 };
 use tracing::{debug, info};
 
-pub type OnStreamPacket = fn(StreamKey, &[u8]);
+pub type OnStreamPacket =  Arc<dyn Fn(StreamKey,&[u8]) + Send + Sync>;
 pub struct TcpPacketWithAddr<'a> {
     pub src_ip: IpAddr,
     pub dst_ip: IpAddr,
@@ -100,7 +101,7 @@ impl TcpSession {
                 client_port,
                 server_ip,
                 server_port,
-                on_stream_packet,
+                on_stream_packet.clone(),
             ),
             server_to_client: TcpReassembly::new(
                 server_ip,
