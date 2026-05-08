@@ -41,7 +41,7 @@ impl AppProtocolHandler for AsciiHandler {
         let mut codec = self.codec.lock().unwrap();
         codec.feed(data);
         while let Some(msg) = codec.decode_frame() {
-            info!("{} rev ASCII data: {}", key, msg);
+            info!("{} rev ASCII: {}", key, msg);
         }
     }
 }
