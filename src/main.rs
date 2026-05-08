@@ -1,5 +1,4 @@
 use clap::Parser;
-use pcap::Device;
 use tracing::info;
 
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
@@ -35,13 +34,7 @@ pub fn on_stream_packet(key: StreamKey, data: &[u8]) {
 async fn main() {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
-    let dev = Device::list()
-        .unwrap()
-        .into_iter()
-        .find(|d| d.name == args.iface)
-        .expect(format!("{} not found", args.iface).as_str());
 
-    info!("Using device: {}", dev.name);
     let mut ps = TcpPcapEngine::new(
         args.iface,
         format!("tcp port {}", args.port),

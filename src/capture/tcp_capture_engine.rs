@@ -4,6 +4,7 @@ use std::{
     net::IpAddr,
 };
 
+use pcap::{Active, Capture};
 use pnet::packet::{
     ethernet::{EtherTypes, EthernetPacket},
     ipv4::Ipv4Packet,
@@ -33,7 +34,6 @@ impl TcpPcapEngine {
         Self {
             device: device.into(),
             bpf: bpf.into(),
-            // on_tcp_packet,
             link_type: pcap::Linktype::NULL,
             server_ports: HashSet::new(),
             sessions: HashMap::new(),
@@ -42,8 +42,7 @@ impl TcpPcapEngine {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
-        use pcap::{Active, Capture};
-
+        
         let mut cap: Capture<Active> = Capture::from_device(self.device.as_str())?
             .promisc(true)
             .snaplen(65535)
@@ -52,6 +51,7 @@ impl TcpPcapEngine {
 
         cap.filter(&self.bpf, true)?;
         self.link_type = cap.get_datalink();
+        info!("Device:{}, link_type:{:?}, waiting for data.",self.device.as_str(),self.link_type);
         loop {
             let packet = match cap.next_packet() {
                 Ok(pkt) => pkt,
