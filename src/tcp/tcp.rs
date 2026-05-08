@@ -1,13 +1,13 @@
-use std::{collections::HashMap, fmt, net::IpAddr};
-use std::fmt::Formatter;
-use std::sync::Arc;
 use pnet_packet::{
     Packet,
     tcp::{TcpFlags, TcpPacket},
 };
+use std::fmt::Formatter;
+use std::sync::Arc;
+use std::{collections::HashMap, fmt, net::IpAddr};
 use tracing::{debug, info};
 
-pub type OnStreamPacket =  Arc<dyn Fn(StreamKey,&[u8]) + Send + Sync>;
+pub type OnStreamPacket = Arc<dyn Fn(StreamKey, &[u8]) + Send + Sync>;
 pub struct TcpPacketWithAddr<'a> {
     pub src_ip: IpAddr,
     pub dst_ip: IpAddr,
@@ -26,7 +26,7 @@ impl<'a> TcpPacketWithAddr<'a> {
 
 impl<'a> From<TcpPacketWithAddr<'a>> for StreamKey {
     fn from(value: TcpPacketWithAddr<'a>) -> Self {
-        Self{
+        Self {
             src_ip: value.src_ip,
             src_port: value.origin.get_source(),
             dst_ip: value.dst_ip,
@@ -56,7 +56,11 @@ impl TcpSessionKey {
 
 impl fmt::Display for TcpSessionKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{} <-> {},{}", self.client_ip, self.client_port, self.server_ip, self.server_port)
+        write!(
+            f,
+            "{}:{} <-> {},{}",
+            self.client_ip, self.client_port, self.server_ip, self.server_port
+        )
     }
 }
 
@@ -159,7 +163,11 @@ pub struct StreamKey {
 
 impl fmt::Display for StreamKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f,"{}:{} -> {}:{}", self.src_ip, self.src_port, self.dst_ip, self.dst_port)
+        write!(
+            f,
+            "{}:{} -> {}:{}",
+            self.src_ip, self.src_port, self.dst_ip, self.dst_port
+        )
     }
 }
 

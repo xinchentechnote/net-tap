@@ -309,6 +309,7 @@ dependencies = [
  "binary-codec",
  "bytes",
  "clap",
+ "lazy_static",
  "pcap",
  "pnet",
  "pnet_packet",
