@@ -19,7 +19,7 @@ lazy_static::lazy_static! {
         RwLock::new(HashMap::new());
 }
 
-pub fn register_protocol_Handler(proto: impl AppProtocolHandler + 'static) {
+pub fn register_protocol_handler(proto: impl AppProtocolHandler + 'static) {
     let mut map = PROTOCOLS.write().unwrap();
     map.insert(proto.name().to_string(), Arc::new(proto));
 }

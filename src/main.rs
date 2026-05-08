@@ -1,6 +1,6 @@
 use crate::proto::proto::{
     AsciiDecoder, AsciiHandler, SseBinaryDecoder, SseBinaryHandler, get_protocol_handler,
-    register_protocol_Handler,
+    register_protocol_handler,
 };
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
 use bytes::BytesMut;
@@ -48,12 +48,12 @@ fn init_tracing() {
 
 async fn main() {
     init_tracing();
-    register_protocol_Handler(AsciiHandler {
+    register_protocol_handler(AsciiHandler {
         codec: Mutex::new(AsciiDecoder {
             buffer: BytesMut::with_capacity(4096),
         }),
     });
-    register_protocol_Handler(SseBinaryHandler {
+    register_protocol_handler(SseBinaryHandler {
         codec: Mutex::new(SseBinaryDecoder {
             buffer: BytesMut::with_capacity(4096),
         }),
