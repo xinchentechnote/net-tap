@@ -1,7 +1,10 @@
+use std::sync::{Arc, Mutex};
 use clap::Parser;
+use tokio::io::AsyncWriteExt;
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
+use crate::proto::proto::{DecodedFrame, FrameDecoder};
 
 mod proto;
 mod record;
@@ -44,11 +47,21 @@ fn init_tracing() {
 async fn main() {
     init_tracing();
     let args = Args::parse();
+    let frame_decoder = Arc::new(Mutex::new(
+        FrameDecoder::new(args.proto.as_str()),
+    ));
     let mut ps = TcpPcapEngine::new(
         args.iface,
         format!("tcp port {}", args.port),
-        |key: StreamKey, data: &[u8]| {
+        move |key: StreamKey, data: &[u8]| {
             info!("{} rev \n{}", key, util::hex::to_hex_str_veiw(data));
+            frame_decoder.lock().unwrap().feed(data);
+            while let Some(msg) = frame_decoder.lock().unwrap().next_frame() {
+                match msg {
+                    DecodedFrame::Ascii(s) => info!("ASCII: {}", s),
+                    DecodedFrame::Sse(bin) => info!("SSE: {:?}", bin),
+                }
+            }
         },
     );
     let _ = ps.start();
