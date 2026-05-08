@@ -1,5 +1,5 @@
-use std::{collections::HashMap, net::IpAddr};
-
+use std::{collections::HashMap, fmt, net::IpAddr};
+use std::fmt::Formatter;
 use pnet_packet::{
     Packet,
     tcp::{TcpFlags, TcpPacket},
@@ -7,18 +7,29 @@ use pnet_packet::{
 use tracing::{debug, info};
 
 pub type OnStreamPacket = fn(StreamKey, &[u8]);
-pub struct TcpPacketWraper<'a> {
+pub struct TcpPacketWithAddr<'a> {
     pub src_ip: IpAddr,
     pub dst_ip: IpAddr,
     pub origin: TcpPacket<'a>,
 }
 
-impl<'a> TcpPacketWraper<'a> {
+impl<'a> TcpPacketWithAddr<'a> {
     pub fn new(src_ip: IpAddr, dst_ip: IpAddr, tcp_packet: TcpPacket<'a>) -> Self {
         Self {
-            src_ip: src_ip,
-            dst_ip: dst_ip,
+            src_ip,
+            dst_ip,
             origin: tcp_packet,
+        }
+    }
+}
+
+impl<'a> From<TcpPacketWithAddr<'a>> for StreamKey {
+    fn from(value: TcpPacketWithAddr<'a>) -> Self {
+        Self{
+            src_ip: value.src_ip,
+            src_port: value.origin.get_source(),
+            dst_ip: value.dst_ip,
+            dst_port: value.origin.get_destination(),
         }
     }
 }
@@ -39,6 +50,12 @@ impl TcpSessionKey {
             server_ip,
             server_port,
         }
+    }
+}
+
+impl fmt::Display for TcpSessionKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{} <-> {},{}", self.client_ip, self.client_port, self.server_ip, self.server_port)
     }
 }
 
@@ -73,7 +90,7 @@ impl TcpSession {
             server_ip,
             server_port,
         };
-        info!("SyncSend:{:?}", session_id);
+        info!("SyncSend:{}", session_id);
         Self {
             session_id,
             server_port,
@@ -100,22 +117,22 @@ impl TcpSession {
         match self.state {
             TcpState::SynSent if flags & TcpFlags::SYN != 0 && flags & TcpFlags::ACK != 0 => {
                 self.state = TcpState::SynReceived;
-                info!("SynReceived:{:?}", self.session_id);
+                info!("SynReceived:{}", self.session_id);
             }
 
             TcpState::SynReceived if flags & TcpFlags::ACK != 0 && flags & TcpFlags::SYN == 0 => {
                 self.state = TcpState::Established;
-                info!("Established:{:?}", self.session_id);
+                info!("Established:{}", self.session_id);
             }
 
             TcpState::Established if flags & TcpFlags::FIN != 0 => {
                 self.state = TcpState::FinWait;
-                info!("FinWait:{:?}", self.session_id);
+                info!("FinWait:{}", self.session_id);
             }
 
             TcpState::FinWait if flags & TcpFlags::ACK != 0 => {
                 self.state = TcpState::Closed;
-                info!("Closed:{:?}", self.session_id);
+                info!("Closed:{}", self.session_id);
             }
 
             _ => {}
@@ -137,6 +154,12 @@ pub struct StreamKey {
     pub src_port: u16,
     pub dst_ip: IpAddr,
     pub dst_port: u16,
+}
+
+impl fmt::Display for StreamKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f,"{}:{} -> {}:{}", self.src_ip, self.src_port, self.dst_ip, self.dst_port)
+    }
 }
 
 pub struct TcpReassembly {

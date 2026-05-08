@@ -13,7 +13,7 @@ use pnet_packet::{Packet, tcp::TcpPacket};
 use pnet_packet::{ipv6::Ipv6Packet, tcp::TcpFlags};
 use tracing::info;
 
-use crate::tcp::tcp::{OnStreamPacket, TcpPacketWraper, TcpSession, TcpSessionKey};
+use crate::tcp::tcp::{OnStreamPacket, TcpPacketWithAddr, TcpSession, TcpSessionKey};
 
 
 pub struct TcpPcapEngine {
@@ -153,12 +153,12 @@ impl TcpPcapEngine {
                 tcp.get_sequence(),
                 tcp.get_acknowledgement()
             );
-            let tpw = TcpPacketWraper::new(src_ip, dst_ip, tcp);
+            let tpw = TcpPacketWithAddr::new(src_ip, dst_ip, tcp);
             self.on_tcp_packet(&tpw);
         }
     }
 
-    fn on_tcp_packet(&mut self, pkt: &TcpPacketWraper<'_>) {
+    fn on_tcp_packet(&mut self, pkt: &TcpPacketWithAddr<'_>) {
         println!("got tcp payload: {} bytes", pkt.origin.payload().len());
         let flags = pkt.origin.get_flags();
         if flags & TcpFlags::SYN != 0 && flags & TcpFlags::ACK == 0 {

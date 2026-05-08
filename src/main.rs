@@ -1,6 +1,6 @@
 use clap::Parser;
 use tracing::info;
-
+use tracing_subscriber::{fmt, EnvFilter};
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
 
 mod proto;
@@ -25,16 +25,29 @@ struct Args {
 }
 
 
+fn init_tracing() {
+    fmt::Subscriber::builder()
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("net_tap=info".parse().unwrap()),
+        )
+        .with_line_number(true)
+        .with_file(true)
+        .with_target(false)
+        .compact()
+        .init();
+}
+
+
 pub fn on_stream_packet(key: StreamKey, data: &[u8]) {
-    info!("{:?} rev {}", key, util::hex::to_hex_str_veiw(data))
+    info!("{} rev \n{}", key, util::hex::to_hex_str_veiw(data))
 }
 
 #[tokio::main]
 
 async fn main() {
-    tracing_subscriber::fmt::init();
+    init_tracing();
     let args = Args::parse();
-
     let mut ps = TcpPcapEngine::new(
         args.iface,
         format!("tcp port {}", args.port),
