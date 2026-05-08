@@ -4,10 +4,9 @@ use pnet_packet::{
     Packet,
     tcp::{TcpFlags, TcpPacket},
 };
-use tracing::{error, info};
+use tracing::{debug, info};
 
-use crate::util;
-
+pub type OnStreamPacket = fn(StreamKey, &[u8]);
 pub struct TcpPacketWraper<'a> {
     pub src_ip: IpAddr,
     pub dst_ip: IpAddr,
@@ -53,15 +52,21 @@ pub enum TcpState {
 }
 
 pub struct TcpSession {
-    pub server_port: u16,
     pub session_id: TcpSessionKey,
+    pub server_port: u16,
     pub state: TcpState,
     client_to_server: TcpReassembly,
     server_to_client: TcpReassembly,
 }
 
 impl TcpSession {
-    pub fn new(client_ip: IpAddr, client_port: u16, server_ip: IpAddr, server_port: u16) -> Self {
+    pub fn new(
+        client_ip: IpAddr,
+        client_port: u16,
+        server_ip: IpAddr,
+        server_port: u16,
+        on_stream_packet: OnStreamPacket,
+    ) -> Self {
         let session_id = TcpSessionKey {
             client_ip,
             client_port,
@@ -70,11 +75,23 @@ impl TcpSession {
         };
         info!("SyncSend:{:?}", session_id);
         Self {
-            server_port,
             session_id,
+            server_port,
             state: TcpState::SynSent,
-            client_to_server: TcpReassembly::default(),
-            server_to_client: TcpReassembly::default(),
+            client_to_server: TcpReassembly::new(
+                client_ip,
+                client_port,
+                server_ip,
+                server_port,
+                on_stream_packet,
+            ),
+            server_to_client: TcpReassembly::new(
+                server_ip,
+                server_port,
+                client_ip,
+                client_port,
+                on_stream_packet,
+            ),
         }
     }
 
@@ -103,74 +120,93 @@ impl TcpSession {
 
             _ => {}
         }
-        if origin.payload().len() > 0 {
-            if self.state == TcpState::Established {
-                if self.server_port == origin.get_destination() {
-                    // to server
-                    info!(
-                        "To server {:?} \n{}",
-                        self.session_id,
-                        util::hex::to_hex_str_veiw(origin.payload())
-                    );
-                    self.client_to_server
-                        .on_packet(origin.get_sequence(), origin.payload());
-                } else {
-                    // to client
-                    info!(
-                        "To client {:?} \n{}",
-                        self.session_id,
-                        util::hex::to_hex_str_veiw(origin.payload())
-                    );
-                    self.server_to_client
-                        .on_packet(origin.get_sequence(), origin.payload());
-                }
-            } else {
-                error!(
-                    "{:?} is {:?} but rec payload\n",
-                    self.session_id, self.state
-                );
-            }
+        let payload = origin.payload();
+        let (dir, seq) = if origin.get_destination() == self.server_port {
+            (&mut self.client_to_server, origin.get_sequence())
+        } else {
+            (&mut self.server_to_client, origin.get_sequence())
+        };
+
+        dir.on_packet(seq, flags, payload);
+    }
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct StreamKey {
+    pub src_ip: IpAddr,
+    pub src_port: u16,
+    pub dst_ip: IpAddr,
+    pub dst_port: u16,
+}
+
+pub struct TcpReassembly {
+    pub stream_key: StreamKey,
+    pub next_seq: Option<u32>,
+    pub out_of_order: HashMap<u32, Vec<u8>>,
+    pub on_stream_packet: OnStreamPacket,
+}
+
+impl TcpReassembly {
+    pub fn new(
+        src_ip: IpAddr,
+        src_port: u16,
+        dst_ip: IpAddr,
+        dst_port: u16,
+        on_stream_packet: OnStreamPacket,
+    ) -> Self {
+        Self {
+            stream_key: StreamKey {
+                src_ip,
+                src_port,
+                dst_ip,
+                dst_port,
+            },
+            next_seq: None,
+            out_of_order: HashMap::new(),
+            on_stream_packet,
         }
     }
 }
 
-#[derive(Default)]
-pub struct TcpReassembly {
-    /// 下一个期望的 seq
-    pub next_seq: Option<u32>,
+fn segment_len(flags: u8, payload: &[u8]) -> u32 {
+    let mut len = payload.len() as u32;
 
-    /// 乱序缓存
-    pub out_of_order: HashMap<u32, Vec<u8>>,
+    if flags & TcpFlags::SYN != 0 {
+        len += 1;
+    }
+    if flags & TcpFlags::FIN != 0 {
+        len += 1;
+    }
+
+    len
 }
 
 impl TcpReassembly {
-    pub fn on_packet(&mut self, seq: u32, payload: &[u8]) {
-        if payload.is_empty() {
+    pub fn on_packet(&mut self, seq: u32, flags: u8, payload: &[u8]) {
+        let seg_len = segment_len(flags, payload);
+        if seg_len == 0 {
             return;
         }
 
         let next_seq = match self.next_seq {
             Some(n) => n,
             None => {
-                // 第一次数据
-                self.accept_data(seq, payload);
+                self.accept(seq, payload, seg_len);
                 return;
             }
         };
 
         if seq == next_seq {
-            // 正好接上
-            self.accept_data(seq, payload);
+            self.accept(seq, payload, seg_len);
         } else if seq > next_seq {
-            // 乱序
             self.out_of_order.insert(seq, payload.to_vec());
         }
-        // seq < next_seq → 重传或已处理，忽略
     }
 
-    fn accept_data(&mut self, seq: u32, payload: &[u8]) {
-        info!("handle data:{}", seq);
-        self.next_seq = Some(seq + payload.len() as u32);
+    fn accept(&mut self, seq: u32, payload: &[u8], seg_len: u32) {
+        debug!("accept seq={} len={}", seq, seg_len);
+        self.next_seq = Some(seq + seg_len);
+        (self.on_stream_packet)(self.stream_key.clone(), payload);
         self.try_consume_queued();
     }
 
@@ -179,7 +215,7 @@ impl TcpReassembly {
 
         while let Some(data) = self.out_of_order.remove(&cur) {
             cur += data.len() as u32;
-            info!("handle data:{}", cur);
+            (self.on_stream_packet)(self.stream_key.clone(), &data);
             self.next_seq = Some(cur);
         }
     }
