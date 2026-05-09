@@ -30,7 +30,21 @@ pub fn get_protocol_handler(name: &str) -> Option<Arc<dyn AppProtocolHandler>> {
 }
 
 pub struct AsciiHandler {
-    pub codec: Mutex<AsciiDecoder>,
+    pub buffer_size: usize,
+    pub streams: Mutex<HashMap<StreamKey, AsciiDecoder>>,
+}
+
+impl AsciiHandler {
+    pub fn new(buffer_size: usize) -> Self {
+        Self {
+            buffer_size,
+            streams: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn default() -> Self {
+        Self::new(1024)
+    }
 }
 impl AppProtocolHandler for AsciiHandler {
     fn name(&self) -> &'static str {
@@ -38,7 +52,10 @@ impl AppProtocolHandler for AsciiHandler {
     }
 
     fn on_data(&self, key: StreamKey, data: &[u8]) {
-        let mut codec = self.codec.lock().unwrap();
+        let mut streams = self.streams.lock().unwrap();
+        let codec = streams.entry(key.clone()).or_insert_with(|| AsciiDecoder {
+            buffer: BytesMut::with_capacity(self.buffer_size),
+        });
         codec.feed(data);
         while let Some(msg) = codec.decode_frame() {
             info!("{} rev ASCII: {}", key, msg);
@@ -47,7 +64,21 @@ impl AppProtocolHandler for AsciiHandler {
 }
 
 pub struct SseBinaryHandler {
-    pub codec: Mutex<SseBinaryDecoder>,
+    pub buffer_size: usize,
+    pub streams: Mutex<HashMap<StreamKey, SseBinaryDecoder>>,
+}
+
+impl SseBinaryHandler {
+    pub fn new(buffer_size: usize) -> Self {
+        Self {
+            buffer_size,
+            streams: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn default() -> Self {
+        Self::new(1024)
+    }
 }
 
 impl AppProtocolHandler for SseBinaryHandler {
@@ -56,7 +87,12 @@ impl AppProtocolHandler for SseBinaryHandler {
     }
 
     fn on_data(&self, key: StreamKey, data: &[u8]) {
-        let mut codec = self.codec.lock().unwrap();
+        let mut streams = self.streams.lock().unwrap();
+        let codec = streams
+            .entry(key.clone())
+            .or_insert_with(|| SseBinaryDecoder {
+                buffer: BytesMut::with_capacity(self.buffer_size),
+            });
         codec.feed(data);
         while let Some(msg) = codec.decode_frame() {
             info!("{} rev sse binary data: {:?}", key, msg);

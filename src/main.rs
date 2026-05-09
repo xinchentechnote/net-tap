@@ -5,9 +5,7 @@ use crate::proto::proto::{
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
 use bytes::BytesMut;
 use clap::Parser;
-use std::ops::Deref;
-use std::sync::{Arc, Mutex};
-use tokio::io::AsyncWriteExt;
+use std::sync::Mutex;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt};
 
@@ -48,18 +46,10 @@ fn init_tracing() {
 
 async fn main() {
     init_tracing();
-    register_protocol_handler(AsciiHandler {
-        codec: Mutex::new(AsciiDecoder {
-            buffer: BytesMut::with_capacity(4096),
-        }),
-    });
-    register_protocol_handler(SseBinaryHandler {
-        codec: Mutex::new(SseBinaryDecoder {
-            buffer: BytesMut::with_capacity(4096),
-        }),
-    });
+    register_protocol_handler(AsciiHandler::default());
+    register_protocol_handler(SseBinaryHandler::default());
     let args = Args::parse();
-    let mut handler = get_protocol_handler(&args.proto).expect("Protocol handler not found");
+    let handler = get_protocol_handler(&args.proto).expect("Protocol handler not found");
     let mut ps = TcpPcapEngine::new(
         args.iface,
         format!("tcp port {}", args.port),
