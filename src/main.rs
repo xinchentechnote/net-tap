@@ -43,7 +43,6 @@ fn init_tracing() {
 }
 
 #[tokio::main]
-
 async fn main() {
     init_tracing();
     register_protocol_handler(AsciiHandler::default());

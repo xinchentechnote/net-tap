@@ -1,4 +1,4 @@
-use pcap::{Active, Capture};
+use pcap::{Active, Capture, Device};
 use pnet::packet::{
     ethernet::{EtherTypes, EthernetPacket},
     ipv4::Ipv4Packet,
@@ -39,6 +39,11 @@ impl TcpPcapEngine {
     }
 
     pub fn start(&mut self) -> anyhow::Result<()> {
+        let _ = Device::list()?
+            .into_iter()
+            .find(|d| d.name == self.device.as_str())
+            .expect(format!("{} not found", self.device.as_str()).as_str());
+
         let mut cap: Capture<Active> = Capture::from_device(self.device.as_str())?
             .promisc(true)
             .snaplen(65535)
