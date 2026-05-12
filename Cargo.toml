@@ -10,6 +10,7 @@ pnet = "0.35.0"
 pnet_packet = "0.35.0"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+szse-binary = { git = "https://github.com/xinchentechnote/fin-proto-szse-bin-rs.git", tag = "v0.1.0" }
 sse-binary = { git = "https://github.com/xinchentechnote/fin-proto-sse-bin-rs.git", tag = "v0.1.0" }
 binary-codec = { git = "https://github.com/xinchentechnote/fin-proto-runtime-bin-rs.git", tag = "v0.1.0" }
 bytes = "1.11.0"

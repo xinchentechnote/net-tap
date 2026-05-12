@@ -316,6 +316,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sse-binary",
+ "szse-binary",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -665,6 +666,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "szse-binary"
+version = "0.1.0"
+source = "git+https://github.com/xinchentechnote/fin-proto-szse-bin-rs.git?tag=v0.1.0#7f1e8c3b298059df094e0aeba3e9744a60f38f12"
+dependencies = [
+ "binary-codec",
+ "byteorder",
+ "bytes",
 ]
 
 [[package]]

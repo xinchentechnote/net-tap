@@ -1,13 +1,13 @@
 use crate::proto::proto::{
-    AsciiDecoder, AsciiHandler, SseBinaryDecoder, SseBinaryHandler, get_protocol_handler,
+    AsciiHandler, get_protocol_handler,
     register_protocol_handler,
 };
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
-use bytes::BytesMut;
 use clap::Parser;
-use std::sync::Mutex;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt};
+use crate::proto::sse_bin::SseBinaryHandler;
+use crate::proto::szse_bin::SzseBinaryHandler;
 
 mod capture;
 mod proto;
@@ -47,6 +47,7 @@ async fn main() {
     init_tracing();
     register_protocol_handler(AsciiHandler::default());
     register_protocol_handler(SseBinaryHandler::default());
+    register_protocol_handler(SzseBinaryHandler::default());
     let args = Args::parse();
     let handler = get_protocol_handler(&args.proto).expect("Protocol handler not found");
     let mut ps = TcpPcapEngine::new(
