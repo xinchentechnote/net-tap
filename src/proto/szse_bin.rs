@@ -39,7 +39,7 @@ impl AppProtocolHandler for SzseBinaryHandler {
             });
         codec.feed(data);
         while let Some(msg) = codec.decode_frame() {
-            info!("{} rev sse binary data: {:?}", key, msg);
+            info!("{} rev szse binary data: {:?}", key, msg);
         }
     }
 }
