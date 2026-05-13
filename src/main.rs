@@ -1,15 +1,16 @@
-use crate::proto::proto::{
-    AsciiHandler, get_protocol_handler,
-    register_protocol_handler,
-};
-use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
-use clap::Parser;
-use tracing::info;
-use tracing_subscriber::{EnvFilter, fmt};
+use crate::config::config::load_config;
+use crate::proto::proto::{AsciiHandler, get_protocol_handler, register_protocol_handler};
 use crate::proto::sse_bin::SseBinaryHandler;
 use crate::proto::szse_bin::SzseBinaryHandler;
+use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
+use clap::Parser;
+use std::vec;
+use tokio::task::JoinHandle;
+use tracing::info;
+use tracing_subscriber::{EnvFilter, fmt};
 
 mod capture;
+mod config;
 mod proto;
 mod record;
 mod tcp;
@@ -28,6 +29,9 @@ struct Args {
     /// TCP port to filter
     #[arg(long, default_value = "8080")]
     port: u16,
+
+    #[arg(long)]
+    config: Option<String>,
 }
 
 fn init_tracing() {
@@ -42,6 +46,17 @@ fn init_tracing() {
         .init();
 }
 
+fn start_pcap_engine(iface: String, bpf: String, proto: String) -> JoinHandle<()> {
+    let handler = get_protocol_handler(proto.as_str()).expect("Protocol handler not found");
+    let mut ps = TcpPcapEngine::new(iface, bpf, move |key: StreamKey, data: &[u8]| {
+        info!("{} rev \n{}", key, util::hex::to_hex_str_veiw(data));
+        handler.on_data(key, data);
+    });
+    tokio::spawn(async move {
+        let _ = ps.start();
+    })
+}
+
 #[tokio::main]
 async fn main() {
     init_tracing();
@@ -49,14 +64,17 @@ async fn main() {
     register_protocol_handler(SseBinaryHandler::default());
     register_protocol_handler(SzseBinaryHandler::default());
     let args = Args::parse();
-    let handler = get_protocol_handler(&args.proto).expect("Protocol handler not found");
-    let mut ps = TcpPcapEngine::new(
-        args.iface,
-        format!("tcp port {}", args.port),
-        move |key: StreamKey, data: &[u8]| {
-            info!("{} rev \n{}", key, util::hex::to_hex_str_veiw(data));
-            handler.on_data(key, data);
-        },
-    );
-    let _ = ps.start();
+
+    if let Some(config) = args.config {
+        let config = load_config(config.as_str()).expect("load config file failed.");
+        let mut results = Vec::new();
+        for channel in config.channel {
+            results.push(start_pcap_engine(channel.iface, channel.bpf, channel.proto));
+        }
+        for result in results {
+            result.await;
+        }
+    } else {
+        start_pcap_engine(args.iface, format!("tcp port {}", args.port), args.proto).await;
+    }
 }

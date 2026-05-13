@@ -63,7 +63,6 @@ impl AppProtocolHandler for AsciiHandler {
     }
 }
 
-
 pub trait ProtocolDecoder {
     type Output;
     fn feed(&mut self, data: &[u8]);

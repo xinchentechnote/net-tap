@@ -53,9 +53,10 @@ impl TcpPcapEngine {
         cap.filter(&self.bpf, true)?;
         self.link_type = cap.get_datalink();
         info!(
-            "Device:{}, link_type:{:?}, waiting for data.",
+            "Device:{}, link_type:{:?}, cap data [{}], waiting for data.",
             self.device.as_str(),
-            self.link_type
+            self.link_type,
+            self.bpf
         );
         loop {
             let packet = match cap.next_packet() {
