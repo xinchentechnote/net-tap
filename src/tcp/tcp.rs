@@ -58,7 +58,7 @@ impl fmt::Display for TcpSessionKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}:{} <-> {},{}",
+            "TcpSessionKey[{}:{} <-> {},{}]",
             self.client_ip, self.client_port, self.server_ip, self.server_port
         )
     }
@@ -165,7 +165,7 @@ impl fmt::Display for StreamKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}:{} -> {}:{}",
+            "StreamKey[{}:{} -> {}:{}]",
             self.src_ip, self.src_port, self.dst_ip, self.dst_port
         )
     }

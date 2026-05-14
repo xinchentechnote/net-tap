@@ -150,7 +150,7 @@ impl TcpPcapEngine {
             let src_port = tcp.get_source();
             let dst_port = tcp.get_destination();
             info!(
-                "TCP packet: {}:{} -> {}:{}, seq :{}, ack :{}",
+                "TCP packet: [{}:{} -> {}:{}], seq :{}, ack :{}",
                 src_ip,
                 src_port,
                 dst_ip,
