@@ -1,11 +1,10 @@
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::fs;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     #[serde(default)]
-    pub channel: Vec<Channel>,
+    pub channels: Vec<Channel>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -27,6 +26,6 @@ mod tests {
     #[test]
     fn test_load_config() {
         let config = load_config("./config/config.toml").unwrap();
-        assert_eq!(config.channel.len(), 2);
+        assert_eq!(config.channels.len(), 2);
     }
 }

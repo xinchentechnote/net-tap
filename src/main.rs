@@ -68,7 +68,7 @@ async fn main() {
     if let Some(config) = args.config {
         let config = load_config(config.as_str()).expect("load config file failed.");
         let mut results = Vec::new();
-        for channel in config.channel {
+        for channel in config.channels {
             results.push(start_pcap_engine(channel.iface, channel.bpf, channel.proto));
         }
         for result in results {

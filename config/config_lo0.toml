@@ -1,9 +1,9 @@
-[[channel]]
+[[channels]]
 iface = "lo0"
 bpf = "tcp port 9002"
 proto = "sse"
 
-[[channel]]
+[[channels]]
 iface = "lo0"
 bpf = "tcp port 9003"
 proto = "szse"
