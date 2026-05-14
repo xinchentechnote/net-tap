@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
-use binary_codec::BinaryCodec;
-use bytes::{Buf, BytesMut};
-use szse_binary::szse_binary::SzseBinary;
-use tracing::info;
 use crate::proto::proto::{AppProtocolHandler, ProtocolDecoder};
 use crate::tcp::tcp::StreamKey;
+use binary_codec::BinaryCodec;
+use bytes::{Buf, BytesMut};
+use std::collections::HashMap;
+use std::sync::Mutex;
+use szse_binary::szse_binary::SzseBinary;
+use tracing::info;
 
 pub struct SzseBinaryHandler {
     pub buffer_size: usize,
@@ -43,7 +43,6 @@ impl AppProtocolHandler for SzseBinaryHandler {
         }
     }
 }
-
 
 pub struct SzseBinaryDecoder {
     pub buffer: BytesMut,
