@@ -8,6 +8,6 @@ else
 fi
 
 sudo ./target/debug/net-tap \
-  --port 9003 \
+  --bpf "tcp port 9003" \
   --proto szse \
   --iface "$etho"

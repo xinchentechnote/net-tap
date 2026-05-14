@@ -8,6 +8,6 @@ else
 fi
 
 sudo ./target/debug/net-tap \
-  --port 9002 \
+  --bpf "tcp port 9002" \
   --proto sse \
   --iface "$etho"

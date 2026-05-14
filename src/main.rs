@@ -26,8 +26,8 @@ struct Args {
     proto: String,
 
     /// TCP port to filter
-    #[arg(long, default_value = "8080")]
-    port: u16,
+    #[arg(long, default_value = "tcp port 8080")]
+    bpf: String,
 
     #[arg(long)]
     config: Option<String>,
@@ -74,6 +74,6 @@ async fn main() {
             let _ = result.await;
         }
     } else {
-        let _ = start_pcap_engine(args.iface, format!("tcp port {}", args.port), args.proto).await;
+        let _ = start_pcap_engine(args.iface, args.bpf, args.proto).await;
     }
 }
