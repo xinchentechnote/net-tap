@@ -47,7 +47,7 @@ jobs:
 
     - name: Start net-tap
       run: |
-        sudo ./target/debug/net-tap --iface ${iface} --port ${port} > capture.log 2>&1 &
+        sudo ./target/debug/net-tap --iface ${iface} --bpf "tcp port ${port}" > capture.log 2>&1 &
         echo $! > tap.pid
         sleep 2
 
