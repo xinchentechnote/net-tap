@@ -4,7 +4,6 @@ use crate::proto::sse_bin::SseBinaryHandler;
 use crate::proto::szse_bin::SzseBinaryHandler;
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
 use clap::Parser;
-use std::vec;
 use tokio::task::JoinHandle;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -72,9 +71,9 @@ async fn main() {
             results.push(start_pcap_engine(channel.iface, channel.bpf, channel.proto));
         }
         for result in results {
-            result.await;
+            let _ = result.await;
         }
     } else {
-        start_pcap_engine(args.iface, format!("tcp port {}", args.port), args.proto).await;
+        let _ = start_pcap_engine(args.iface, format!("tcp port {}", args.port), args.proto).await;
     }
 }

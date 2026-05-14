@@ -1,8 +1,26 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::record::types::CaptureRecord;
+
+pub fn record_packet(tx: Sender<CaptureRecord>, device: String, data: &[u8]) {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+
+    let rec = CaptureRecord {
+        ts_nanos: ts,
+        iface: device,
+        data: data.to_vec(),
+    };
+
+    // 异步写入队列
+    let _ = tx.send(rec);
+}
 
 pub async fn run_file_writer(mut rx: Receiver<CaptureRecord>, path: &str) {
     let mut file = OpenOptions::new()

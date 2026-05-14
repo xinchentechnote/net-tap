@@ -5,17 +5,24 @@ use pnet::packet::{
 };
 use pnet_packet::{Packet, tcp::TcpPacket};
 use pnet_packet::{ipv6::Ipv6Packet, tcp::TcpFlags};
-use std::sync::Arc;
 use std::{
     collections::{HashMap, HashSet},
     net::IpAddr,
 };
+use std::{
+    sync::Arc
+};
+use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::tcp::tcp::{OnStreamPacket, StreamKey, TcpPacketWithAddr, TcpSession, TcpSessionKey};
+use crate::{
+    record::{self, data_record::record_packet, types::CaptureRecord},
+    tcp::tcp::{OnStreamPacket, StreamKey, TcpPacketWithAddr, TcpSession, TcpSessionKey},
+};
 
 pub struct TcpPcapEngine {
     pub device: String,
+    pub journal_path: Option<String>,
     pub bpf: String,
     pub link_type: pcap::Linktype,
     pub server_ports: HashSet<u16>,
@@ -30,6 +37,7 @@ impl TcpPcapEngine {
     {
         Self {
             device: device.into(),
+            journal_path: None,
             bpf: bpf.into(),
             link_type: pcap::Linktype::NULL,
             server_ports: HashSet::new(),
@@ -58,13 +66,20 @@ impl TcpPcapEngine {
             self.link_type,
             self.bpf
         );
+
+        let (tx, rx) = mpsc::channel::<CaptureRecord>(4096);
+        if let Some(path) = self.journal_path.clone() {
+            tokio::spawn(async move {
+                record::data_record::run_file_writer(rx, path.as_str()).await;
+            });
+        }
         loop {
             let packet = match cap.next_packet() {
                 Ok(pkt) => pkt,
                 Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => return Err(e.into()),
             };
-
+            record_packet(tx.clone(), self.device.clone(), packet.data);
             self.handle_packet(packet.data);
         }
     }

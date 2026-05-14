@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+cargo fix --allow-dirty
 cargo build
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
