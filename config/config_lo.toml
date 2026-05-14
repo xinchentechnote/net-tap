@@ -2,8 +2,10 @@
 iface = "lo"
 bpf = "tcp port 9002"
 proto = "sse"
+journal_path = "sse_record_data.bin"
 
 [[channels]]
 iface = "lo"
 bpf = "tcp port 9003"
 proto = "szse"
+ournal_path = "szse_record_data.bin"

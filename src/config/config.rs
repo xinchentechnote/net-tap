@@ -12,6 +12,7 @@ pub struct Channel {
     pub iface: String,
     pub bpf: String,
     pub proto: String,
+    pub journal_path: Option<String>,
 }
 
 pub fn load_config(path: &str) -> anyhow::Result<Config> {

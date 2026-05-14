@@ -5,12 +5,10 @@ use pnet::packet::{
 };
 use pnet_packet::{Packet, tcp::TcpPacket};
 use pnet_packet::{ipv6::Ipv6Packet, tcp::TcpFlags};
+use std::sync::Arc;
 use std::{
     collections::{HashMap, HashSet},
     net::IpAddr,
-};
-use std::{
-    sync::Arc
 };
 use tokio::sync::mpsc;
 use tracing::info;
@@ -46,7 +44,7 @@ impl TcpPcapEngine {
         }
     }
 
-    pub fn start(&mut self) -> anyhow::Result<()> {
+    pub async fn start(&mut self) -> anyhow::Result<()> {
         let _ = Device::list()?
             .into_iter()
             .find(|d| d.name == self.device.as_str())
@@ -69,17 +67,19 @@ impl TcpPcapEngine {
 
         let (tx, rx) = mpsc::channel::<CaptureRecord>(4096);
         if let Some(path) = self.journal_path.clone() {
+            info!("Journal path: {}", path);
             tokio::spawn(async move {
                 record::data_record::run_file_writer(rx, path.as_str()).await;
             });
         }
+        let tx_clone = tx.clone();
         loop {
             let packet = match cap.next_packet() {
                 Ok(pkt) => pkt,
                 Err(pcap::Error::TimeoutExpired) => continue,
                 Err(e) => return Err(e.into()),
             };
-            record_packet(tx.clone(), self.device.clone(), packet.data);
+            record_packet(&tx_clone, self.device.clone(), packet.data);
             self.handle_packet(packet.data);
         }
     }
