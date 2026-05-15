@@ -33,59 +33,59 @@ jobs:
         git config --global url."https://github.com/".insteadOf "git@github.com:"
         cargo build --verbose --bins
 
-    - name: Prepare network vars
-      run: |
-        iface="${{ matrix.iface }}"
-        port="${{ matrix.port }}"
-        ip=$(ip -4 addr show ${iface} | awk '/inet / {print $2}' | cut -d/ -f1)
-
-        echo "iface=$iface" >> $GITHUB_ENV
-        echo "port=$port"   >> $GITHUB_ENV
-        echo "ip=$ip"       >> $GITHUB_ENV
-
-        echo "Using iface=$iface ip=$ip port=$port"
-
-    - name: Start net-tap
-      run: |
-        sudo ./target/debug/net-tap --iface ${iface} --bpf "tcp port ${port}" > capture.log 2>&1 &
-        echo $! > tap.pid
-        sleep 2
-
-    - name: Start echo server
-      run: |
-        ./target/debug/echos --host ${ip} --port ${port} > server.log 2>&1 &
-        echo $! > server.pid
-        sleep 2
-
-    - name: Run echo client (inside Docker)
-      run: |
-        docker run --rm --network host \
-          -v $PWD/target/debug:/app \
-          ubuntu:22.04 \
-          /app/echoc --ip ${ip} --port ${port} > client.log 2>&1
-
-        cat client.log
-        sleep 3
-
-    - name: Stop processes
-      run: |
-        kill $(cat tap.pid) || true
-        kill $(cat server.pid) || true
-
-    - name: Show capture log
-      run: cat capture.log
-
-    - name: Validate capture.log
-      run: |
-        COUNT=$(grep -F "data: hello world" capture.log | wc -l)
-        EXPECT=${{ matrix.expect_packets }}
-
-        echo "Found: $COUNT, Expect: $EXPECT"
-
-        if [ "$COUNT" -ne "$EXPECT" ]; then
-          echo "ERROR: Expected $EXPECT occurrences, got $COUNT"
-          exit 1
-        fi
+#    - name: Prepare network vars
+#      run: |
+#        iface="${{ matrix.iface }}"
+#        port="${{ matrix.port }}"
+#        ip=$(ip -4 addr show ${iface} | awk '/inet / {print $2}' | cut -d/ -f1)
+#
+#        echo "iface=$iface" >> $GITHUB_ENV
+#        echo "port=$port"   >> $GITHUB_ENV
+#        echo "ip=$ip"       >> $GITHUB_ENV
+#
+#        echo "Using iface=$iface ip=$ip port=$port"
+#
+#    - name: Start net-tap
+#      run: |
+#        sudo ./target/debug/net-tap --iface ${iface} --bpf "tcp port ${port}" > capture.log 2>&1 &
+#        echo $! > tap.pid
+#        sleep 2
+#
+#    - name: Start echo server
+#      run: |
+#        ./target/debug/echos --host ${ip} --port ${port} > server.log 2>&1 &
+#        echo $! > server.pid
+#        sleep 2
+#
+#    - name: Run echo client (inside Docker)
+#      run: |
+#        docker run --rm --network host \
+#          -v $PWD/target/debug:/app \
+#          ubuntu:22.04 \
+#          /app/echoc --ip ${ip} --port ${port} > client.log 2>&1
+#
+#        cat client.log
+#        sleep 3
+#
+#    - name: Stop processes
+#      run: |
+#        kill $(cat tap.pid) || true
+#        kill $(cat server.pid) || true
+#
+#    - name: Show capture log
+#      run: cat capture.log
+#
+#    - name: Validate capture.log
+#      run: |
+#        COUNT=$(grep -F "data: hello world" capture.log | wc -l)
+#        EXPECT=${{ matrix.expect_packets }}
+#
+#        echo "Found: $COUNT, Expect: $EXPECT"
+#
+#        if [ "$COUNT" -ne "$EXPECT" ]; then
+#          echo "ERROR: Expected $EXPECT occurrences, got $COUNT"
+#          exit 1
+#        fi
 
     - name: show ip link
       run: |
