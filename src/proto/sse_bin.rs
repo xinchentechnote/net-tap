@@ -1,4 +1,4 @@
-use crate::proto::proto::{AppProtocolHandler, ProtocolDecoder};
+use crate::proto::proto::{AppProtocolHandler, Decoder};
 use crate::tcp::tcp::StreamKey;
 use binary_codec::BinaryCodec;
 use bytes::{Buf, BytesMut};
@@ -48,7 +48,7 @@ pub struct SseBinaryDecoder {
     pub buffer: BytesMut,
 }
 
-impl ProtocolDecoder for SseBinaryDecoder {
+impl Decoder for SseBinaryDecoder {
     type Output = SseBinary;
     fn feed(&mut self, data: &[u8]) {
         self.buffer.extend_from_slice(data);

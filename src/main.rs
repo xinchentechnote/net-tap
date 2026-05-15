@@ -1,5 +1,6 @@
 use crate::config::config::load_config;
-use crate::proto::proto::{AsciiHandler, get_protocol_handler, register_protocol_handler};
+use crate::proto::line::LineHandler;
+use crate::proto::proto::{get_protocol_handler, register_protocol_handler};
 use crate::proto::sse_bin::SseBinaryHandler;
 use crate::proto::szse_bin::SzseBinaryHandler;
 use crate::{capture::tcp_capture_engine::TcpPcapEngine, tcp::tcp::StreamKey};
@@ -66,7 +67,7 @@ fn start_pcap_engine(
 #[tokio::main]
 async fn main() {
     init_tracing();
-    register_protocol_handler(AsciiHandler::default());
+    register_protocol_handler(LineHandler::default());
     register_protocol_handler(SseBinaryHandler::default());
     register_protocol_handler(SzseBinaryHandler::default());
     let args = Args::parse();

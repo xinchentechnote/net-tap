@@ -68,7 +68,6 @@ impl TcpPcapEngine {
         let (tx, rx) = mpsc::channel::<CaptureRecord>(4096);
         if let Some(path) = self.journal_path.clone() {
             //todo fix bug
-            info!("Journal path: {}", path);
             tokio::spawn(async move {
                 record::data_record::run_file_writer(rx, path.as_str()).await;
             });
