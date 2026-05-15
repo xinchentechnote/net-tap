@@ -35,7 +35,7 @@ impl AppProtocolHandler for LineHandler {
         });
         codec.feed(data);
         while let Some(msg) = codec.decode_frame() {
-            info!("{} rev ASCII: {}", key, msg);
+            info!("{} rev data: {}", key, msg);
         }
     }
 }

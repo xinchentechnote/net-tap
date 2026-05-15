@@ -77,7 +77,7 @@ jobs:
 
     - name: Validate capture.log
       run: |
-        COUNT=$(grep -F "ASCII: hello world" capture.log | wc -l)
+        COUNT=$(grep -F "data: hello world" capture.log | wc -l)
         EXPECT=${{ matrix.expect_packets }}
 
         echo "Found: $COUNT, Expect: $EXPECT"
